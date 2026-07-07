@@ -5,6 +5,11 @@
 </head>
 <body>
     <h2>Room: {{ room_name }}</h2>
+    <div id="chat-history" style="border:1px solid black; padding:10px; width:400px; height:150px; overflow-y:scroll;">
+    {% for msg in messages %}
+        <p><strong>{{ msg.sender.username }}:</strong> {{ msg.text }}</p>
+    {% endfor %}
+    </div>
 
     <input id="sender-input" type="text" placeholder="Your name" value="Guest">
     <br><br>
