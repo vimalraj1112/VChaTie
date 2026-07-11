@@ -1,23 +1,45 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
-<head><title>Inbox</title></head>
+<head>
+    <title>Chats</title>
+    <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+</head>
 <body>
-    <h2>Welcome, {{ request.user.username }}</h2>
-    <a href="{% url 'logout' %}">Logout</a>
-    <h3>Your Conversations</h3>
-    <ul>
-        {% for conv in conversations %}
-            <li>
-                {% if conv.is_group %}
-                    {{ conv.group_name }}
-                {% else %}
-                    Chat #{{ conv.id }}
-                {% endif %}
-                — <a href="{% url 'room' conv.id %}">Open</a>
-            </li>
-        {% empty %}
-            <li>No conversations yet.</li>
-        {% endfor %}
-    </ul>
+    <div class="app-container">
+        <div class="top-bar">
+            <h2>Chats</h2>
+            <a href="{% url 'logout' %}">Logout</a>
+        </div>
+
+        <a href="{% url 'new_conversation' %}" class="new-chat-btn">+ Start New Chat</a>
+
+        <ul class="conversation-list">
+            {% for item in conversation_data %}
+                <a href="{% url 'room' item.conversation.id %}" class="conversation-item">
+                    <div class="avatar-circle">
+                        {{ item.display_name|slice:":1"|upper }}
+                        {% if item.other_user.profile.is_online %}
+                            <span class="online-dot"></span>
+                        {% endif %}
+                    </div>
+                    <div class="conversation-info">
+                        <div class="conversation-name">{{ item.display_name }}</div>
+                        <div class="conversation-status">
+                            {% if item.preview %}
+                                {{ item.preview|truncatechars:35 }}
+                            {% else %}
+                                No messages yet
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+            {% empty %}
+                <div class="empty-state">No conversations yet. Start a new chat!</div>
+            {% endfor %}
+        </ul>
+    </div>
+    <script src="{% static 'chatie/js/presence.js' %}"></script>
+<script>initPresence();</script>
 </body>
 </html>

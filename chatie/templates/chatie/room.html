@@ -1,59 +1,64 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chat Room</title>
+    <title>{{ display_name }}</title>
+    <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
 </head>
 <body>
-    <h2>Room: {{ room_name }}</h2>
-    <div id="chat-history" style="border:1px solid black; padding:10px; width:400px; height:150px; overflow-y:scroll;">
-    {% for msg in messages %}
-        <p><strong>{{ msg.sender.username }}:</strong> {{ msg.text }}</p>
-    {% endfor %}
+    <div class="app-container">
+        <div class="room-header">
+            <a href="{% url 'inbox' %}">&larr;</a>
+            <div class="room-title">{{ display_name }}</div>
+        </div>
+
+        <div id="chat-window" class="chat-window">
+            {% for msg in messages %}
+                {% if msg.sender == request.user %}
+                    <div class="message-bubble message-sent">
+                        <div>{{ msg.text }}</div>
+                        <div class="msg-meta">
+                            <span class="msg-time">{{ msg.timestamp|time:"g:i A" }}</span>
+                            {% if msg.is_read %}
+                                <span class="tick tick-blue">&#10003;&#10003;</span>
+                            {% elif other_online %}
+                                <span class="tick tick-gray">&#10003;&#10003;</span>
+                            {% else %}
+                                <span class="tick tick-gray">&#10003;</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="message-bubble message-received">
+                        <div class="message-sender-name">{{ msg.sender.username }}</div>
+                        <div>{{ msg.text }}</div>
+                        <div class="msg-meta">
+                            <span class="msg-time">{{ msg.timestamp|time:"g:i A" }}</span>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="message-input-bar">
+            <input id="chat-message-input" type="text" placeholder="Type a message">
+            <button id="chat-message-submit">&#9658;</button>
+        </div>
     </div>
 
-    <input id="sender-input" type="text" placeholder="Your name" value="Guest">
-    <br><br>
-    <textarea id="chat-log" cols="60" rows="15" readonly></textarea><br>
-    <input id="chat-message-input" type="text" size="50">
-    <input id="chat-message-submit" type="button" value="Send">
-
     {{ room_name|json_script:"room-name" }}
+    {{ request.user.username|json_script:"current-username" }}
 
+    <script src="{% static 'chatie/js/room.js' %}"></script>
     <script>
         const roomName = JSON.parse(document.getElementById('room-name').textContent);
+        const currentUsername = JSON.parse(document.getElementById('current-username').textContent);
+        initChatRoom(roomName, currentUsername);
 
-        const chatSocket = new WebSocket(
-            'ws://' + window.location.host + '/ws/chat/' + roomName + '/'
-        );
-
-        chatSocket.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-            document.querySelector('#chat-log').value += (data.sender + ': ' + data.message + '\n');
-        };
-
-        chatSocket.onclose = function(e) {
-            console.error('Chat socket closed unexpectedly');
-        };
-
-        document.querySelector('#chat-message-input').focus();
-        document.querySelector('#chat-message-input').onkeyup = function(e) {
-            if (e.key === 'Enter') {
-                document.querySelector('#chat-message-submit').click();
-            }
-        };
-
-        document.querySelector('#chat-message-submit').onclick = function(e) {
-            const messageInputDom = document.querySelector('#chat-message-input');
-            const message = messageInputDom.value;
-            const sender = document.querySelector('#sender-input').value;
-
-            chatSocket.send(JSON.stringify({
-                'message': message,
-                'sender': sender
-            }));
-
-            messageInputDom.value = '';
-        };
+        const chatWindow = document.querySelector('#chat-window');
+        chatWindow.scrollTop = chatWindow.scrollHeight;
     </script>
+    <script src="{% static 'chatie/js/presence.js' %}"></script>
+<script>initPresence();</script>
 </body>
 </html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head><title>New Conversation</title></head>
+<body>
+    <h2>Start a New Chat or Group</h2>
+    <a href="{% url 'inbox' %}">← Back to Inbox</a>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <p>Group name (leave blank for 1-on-1 chat):</p>
+        <input type="text" name="group_name" placeholder="e.g. Weekend Trip">
+
+        <p>Select user(s):</p>
+        {% for u in users %}
+            <label>
+                <input type="checkbox" name="users" value="{{ u.id }}"> {{ u.username }}
+            </label><br>
+        {% empty %}
+            <p>No other users found.</p>
+        {% endfor %}
+
+        <br>
+        <button type="submit">Start Chat</button>
+    </form>
+</body>
+</html>
