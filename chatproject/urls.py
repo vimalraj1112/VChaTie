@@ -20,7 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('chatie/',include('chatie.urls')),
+    path('',include('chatie.urls')),
     path('api/',include('chatie.api_urls'))
 ]
 if settings.DEBUG:
