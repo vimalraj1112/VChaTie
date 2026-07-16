@@ -16,6 +16,7 @@ class Conversation(models.Model):
     is_group=models.BooleanField(default=False)
     group_name=models.CharField(max_length=200,blank=True)
     created_at=models.DateTimeField(auto_now_add=True)
+    deleted_for=models.ManyToManyField(User,related_name='deleted_conversations',blank=True)
 
     def __str__(self):
         if self.is_group:
@@ -27,8 +28,12 @@ class Message(models.Model):
     sender=models.ForeignKey(User,on_delete=models.CASCADE)
     text=models.TextField(blank=True)    
     image=models.ImageField(upload_to='chat_images/',blank=True,null=True)
+    video=models.FileField(upload_to='chat_videos',blank=True,null=True)
+    audio=models.FileField(upload_to='chat_audio',blank=True,null=True)
     timestamp=models.DateTimeField(auto_now_add=True)
     is_read=models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    reply_to=models.ForeignKey('self',on_delete=models.SET_NULL,null=True,blank=True,related_name='replies')
 
     class Meta:
         ordering=['timestamp']

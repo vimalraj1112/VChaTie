@@ -2,44 +2,64 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chats</title>
+    <title>VChaTie</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'chatie/img/logo.svg' %}">
     <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
         <div class="top-bar">
-            <h2>Chats</h2>
-            <a href="{% url 'logout' %}">Logout</a>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <img src="{% static 'chatie/img/logo.svg' %}" alt="VChaTie" style="width:28px; height:28px;">
+                <h2>VChaTie</h2>
+            </div>
+            <div style="display:flex; align-items:center; gap:14px;">
+                <a href="{% url 'profile_settings' %}">Profile</a>
+                <a href="{% url 'logout' %}">Logout</a>
+            </div>
         </div>
 
-        <a href="{% url 'new_conversation' %}" class="new-chat-btn">+ Start New Chat</a>
+           
 
         <ul class="conversation-list">
             {% for item in conversation_data %}
-                <a href="{% url 'room' item.conversation.id %}" class="conversation-item">
-                    <div class="avatar-circle">
-                        {{ item.display_name|slice:":1"|upper }}
-                        {% if item.other_user.profile.is_online %}
-                            <span class="online-dot"></span>
-                        {% endif %}
-                    </div>
-                    <div class="conversation-info">
-                        <div class="conversation-name">{{ item.display_name }}</div>
-                        <div class="conversation-status">
-                            {% if item.preview %}
-                                {{ item.preview|truncatechars:35 }}
+                <div class="conversation-item">
+                    <a href="{% url 'room' item.conversation.id %}" class="conversation-link">
+                        <div class="avatar-circle">
+                            {% if item.other_user.profile.avatar %}
+                                <img src="{{ item.other_user.profile.avatar.url }}" class="avatar-img">
                             {% else %}
-                                No messages yet
+                                {{ item.display_name|slice:":1"|upper }}
+                            {% endif %}
+                            {% if item.other_user.profile.is_online %}
+                                <span class="online-dot"></span>
                             {% endif %}
                         </div>
-                    </div>
-                </a>
+                        <div class="conversation-info">
+                            <div class="conversation-name">{{ item.display_name }}</div>
+                            <div class="conversation-status">
+                                {% if item.preview %}
+                                    {{ item.preview|truncatechars:35 }}
+                                {% else %}
+                                    No messages yet
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                    <form method="POST" action="{% url 'delete_chat' item.conversation.id %}" class="delete-chat-form">
+                        {% csrf_token %}
+                        <button type="submit" class="delete-chat-btn" onclick="return confirm('Delete this chat?');">&#128465;</button>
+                    </form>
+                </div>
             {% empty %}
                 <div class="empty-state">No conversations yet. Start a new chat!</div>
             {% endfor %}
         </ul>
+        <a href="{% url 'new_conversation' %}" class="fab-new-chat">+</a>
     </div>
     <script src="{% static 'chatie/js/presence.js' %}"></script>
-<script>initPresence();</script>
+    <script>initPresence();</script>
 </body>
 </html>

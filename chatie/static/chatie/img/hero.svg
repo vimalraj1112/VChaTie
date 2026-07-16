@@ -1,0 +1,34 @@
+<svg width="680" height="480" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="royalbg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0%" stop-color="#0a3d2e"/>
+<stop offset="100%" stop-color="#04241a"/>
+</linearGradient>
+<pattern id="star" width="68" height="68" patternUnits="userSpaceOnUse">
+<g stroke="#c9a24b" stroke-width="0.6" fill="none" opacity="0.35">
+<path d="M34 4 L44 24 L64 24 L48 38 L54 58 L34 46 L14 58 L20 38 L4 24 L24 24 Z"/>
+</g>
+</pattern>
+</defs>
+<rect x="0" y="0" width="680" height="480" fill="url(#royalbg)"/>
+<rect x="0" y="0" width="680" height="480" fill="url(#star)"/>
+<rect x="18" y="18" width="644" height="444" fill="none" stroke="#c9a24b" stroke-width="1.5" opacity="0.6"/>
+<rect x="26" y="26" width="628" height="428" fill="none" stroke="#c9a24b" stroke-width="0.5" opacity="0.4"/>
+<rect x="255" y="70" width="170" height="300" rx="22" fill="#f7f3e8"/>
+<rect x="265" y="98" width="150" height="240" rx="4" fill="#eee7d5"/>
+<rect x="255" y="70" width="170" height="28" rx="22" fill="#f7f3e8"/>
+<circle cx="340" cy="356" r="9" fill="#c9a24b"/>
+<rect x="280" y="112" width="90" height="24" rx="8" fill="#ffffff"/>
+<rect x="280" y="144" width="120" height="24" rx="8" fill="#d9c98a"/>
+<rect x="280" y="176" width="70" height="24" rx="8" fill="#ffffff"/>
+<rect x="280" y="208" width="110" height="24" rx="8" fill="#d9c98a"/>
+<rect x="280" y="240" width="95" height="24" rx="8" fill="#ffffff"/>
+<g opacity="0.9">
+<rect x="80" y="140" width="58" height="44" rx="12" fill="#c9a24b"/>
+<path d="M90 184 L90 198 L108 184 Z" fill="#c9a24b"/>
+</g>
+<g opacity="0.8">
+<rect x="510" y="230" width="66" height="50" rx="14" fill="#0d6e5f"/>
+<path d="M522 280 L522 296 L542 280 Z" fill="#0d6e5f"/>
+</g>
+</svg>

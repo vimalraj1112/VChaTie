@@ -1,23 +1,43 @@
 {% load static %}
 <!DOCTYPE html>
 <html>
-<head><title>Register</title></head>
+<head>
+    <title>Register - VChaTie</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'chatie/img/logo.svg' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+</head>
 <body>
-    <h2>Create Account</h2>
+    <div class="auth-page-v2">
+        <img src="{% static 'chatie/img/logo.svg' %}" alt="VChaTie" class="auth-logo">
+        <div class="auth-brand-title">VChaTie</div>
 
-    {% if message %}
-        {% for message in messages %}
-            <p style="color:red;">{{ message }}</p>
-        {% endfor %}
-    {% endif %}
+        <div class="auth-card">
+            <h2>Create your account</h2>
+            {% if messages %}
+                {% for message in messages %}
+                    <p class="auth-error-v2">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+            <form method="POST">
+                {% csrf_token %}
+                <input type="text" name="username" placeholder="Choose a username" required>
+                <div class="password-wrapper">
+                    <input type="password" name="password" id="password" placeholder="Choose a password (min 6 chars)" required>
+                    <span class="toggle-eye" onclick="togglePassword()">&#128065;</span>
+                </div>
+                <button type="submit">Register</button>
+            </form>
+            <p>Already have an account? <a href="{% url 'login' %}">Login here</a></p>
+        </div>
+    </div>
 
-    <form method="POST">
-        {% csrf_token %}
-        <input type="text" name="username" placeholder="Choose a username" required><br><br>
-        <input type="password" name="password" placeholder="Choose a password (min 6 chars)" required><br><br>
-        <button type="submit">Register</button>
-    </form>
-
-    <p>Already have an account? <a href="{% url 'login' %}">Login here</a></p>
+    <script>
+    function togglePassword() {
+        const input = document.getElementById('password');
+        input.type = input.type === 'password' ? 'text' : 'password';
+    }
+    </script>
 </body>
 </html>

@@ -1,0 +1,24 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VChaTie</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'chatie/img/logo.svg' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+</head>
+<body>
+    <div class="splash-page">
+        <img src="{% static 'chatie/img/logo.svg' %}" alt="VChaTie" class="splash-logo">
+        <h1 class="splash-title">VChaTie</h1>
+        <p class="splash-tagline">Chat freely · Stay close</p>
+    </div>
+
+    <script>
+        setTimeout(function() {
+            window.location.href = "{% url 'landing' %}";
+        }, 2000);
+    </script>
+</body>
+</html>

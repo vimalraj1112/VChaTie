@@ -1,27 +1,42 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
-<head><title>New Conversation</title></head>
+<head>
+    <title>New Chat - VChaTie</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'chatie/img/logo.svg' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+</head>
 <body>
-    <h2>Start a New Chat or Group</h2>
-    <a href="{% url 'inbox' %}">← Back to Inbox</a>
+    <div class="new-convo-page">
+        <div class="new-convo-header">
+            <a href="{% url 'inbox' %}">&larr; Back to Inbox</a>
+            <h2>Start a New Chat or Group</h2>
+        </div>
 
-    <form method="POST">
-        {% csrf_token %}
+        <div class="new-convo-form">
+            <form method="POST">
+                {% csrf_token %}
 
-        <p>Group name (leave blank for 1-on-1 chat):</p>
-        <input type="text" name="group_name" placeholder="e.g. Weekend Trip">
+                <label class="section-label">Group name (leave blank for 1-on-1 chat)</label>
+                <input type="text" name="group_name" placeholder="e.g. Weekend Trip">
 
-        <p>Select user(s):</p>
-        {% for u in users %}
-            <label>
-                <input type="checkbox" name="users" value="{{ u.id }}"> {{ u.username }}
-            </label><br>
-        {% empty %}
-            <p>No other users found.</p>
-        {% endfor %}
+                <label class="section-label">Select user(s)</label>
+                <div class="user-checkbox-list">
+                    {% for u in users %}
+                        <label class="user-checkbox-item">
+                            <input type="checkbox" name="users" value="{{ u.id }}">
+                            <span>{{ u.username }}</span>
+                        </label>
+                    {% empty %}
+                        <p class="no-users-text">No other users found.</p>
+                    {% endfor %}
+                </div>
 
-        <br>
-        <button type="submit">Start Chat</button>
-    </form>
+                <button type="submit">Start Chat</button>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

@@ -3,20 +3,52 @@
 <html>
 <head>
     <title>{{ display_name }}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'chatie/img/logo.svg' %}">
     <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
         <div class="room-header">
             <a href="{% url 'inbox' %}">&larr;</a>
-            <div class="room-title">{{ display_name }}</div>
+            <div>
+                <div class="room-title">{{ display_name }}</div>
+                {% if other_bio %}
+                    <div class="room-subtitle">{{ other_bio }}</div>
+                {% elif is_group %}
+                    <div class="room-subtitle">Group · Created {{ created_at|date:"M d, Y" }}</div>
+                {% endif %}
+            </div>
+            {% if is_group %}
+                <form method="POST" action="{% url 'leave_group' room_name %}" class="leave-group-form">
+                    {% csrf_token %}
+                    <button type="submit" class="leave-group-btn" onclick="return confirm('Leave this group?');">Leave</button>
+                </form>
+            {% endif %}
         </div>
 
         <div id="chat-window" class="chat-window">
             {% for msg in messages %}
                 {% if msg.sender == request.user %}
-                    <div class="message-bubble message-sent">
-                        <div>{{ msg.text }}</div>
+                    <div class="message-bubble message-sent" data-message-id="{{ msg.id }}">
+                        <span class="reply-btn" onclick="setReply({{ msg.id }}, '{{ msg.sender.username }}', `{{ msg.text|escapejs }}`)">&#8617;</span>
+                        {% if not msg.is_deleted %}
+                            <span class="delete-msg-btn" onclick="deleteMessage({{ msg.id }}, this)">&#128465;</span>
+                        {% endif %}
+                        {% if msg.is_deleted %}
+                            <div class="deleted-text">This message was deleted</div>
+                        {% elif msg.image %}
+                            <a href="{{ msg.image.url }}" target="_blank" class="media-link">
+                                <img src="{{ msg.image.url }}" class="media-bubble">
+                            </a>
+                        {% elif msg.video %}
+                            <video src="{{ msg.video.url }}" controls class="media-bubble"></video>
+                        {% elif msg.audio %}
+                            <audio src="{{ msg.audio.url }}" controls class="audio-bubble"></audio>
+                        {% else %}
+                            <div>{{ msg.text }}</div>
+                        {% endif %}
                         <div class="msg-meta">
                             <span class="msg-time">{{ msg.timestamp|time:"g:i A" }}</span>
                             {% if msg.is_read %}
@@ -29,9 +61,22 @@
                         </div>
                     </div>
                 {% else %}
-                    <div class="message-bubble message-received">
+                    <div class="message-bubble message-received" data-message-id="{{ msg.id }}">
                         <div class="message-sender-name">{{ msg.sender.username }}</div>
-                        <div>{{ msg.text }}</div>
+                        <span class="reply-btn" onclick="setReply({{ msg.id }}, '{{ msg.sender.username }}', `{{ msg.text|escapejs }}`)">&#8617;</span>
+                        {% if msg.is_deleted %}
+                            <div class="deleted-text">This message was deleted</div>
+                        {% elif msg.image %}
+                            <a href="{{ msg.image.url }}" target="_blank" class="media-link">
+                                <img src="{{ msg.image.url }}" class="media-bubble">
+                            </a>
+                        {% elif msg.video %}
+                            <video src="{{ msg.video.url }}" controls class="media-bubble"></video>
+                        {% elif msg.audio %}
+                            <audio src="{{ msg.audio.url }}" controls class="audio-bubble"></audio>
+                        {% else %}
+                            <div>{{ msg.text }}</div>
+                        {% endif %}
                         <div class="msg-meta">
                             <span class="msg-time">{{ msg.timestamp|time:"g:i A" }}</span>
                         </div>
@@ -39,9 +84,19 @@
                 {% endif %}
             {% endfor %}
         </div>
+        <div id="reply-preview-bar" class="reply-preview-bar" style="display:none;">
+    <div class="reply-preview-content">
+        <strong id="reply-preview-sender"></strong>
+        <div id="reply-preview-text"></div>
+    </div>
+    <span class="reply-cancel-btn" onclick="cancelReply()">&times;</span>
+</div>
 
         <div class="message-input-bar">
+            <label for="file-input" class="attach-btn">&#128206;</label>
+            <input type="file" id="file-input" accept="image/*,video/*" style="display:none;">
             <input id="chat-message-input" type="text" placeholder="Type a message">
+            <button id="mic-btn" class="mic-btn" type="button">&#127908;</button>
             <button id="chat-message-submit">&#9658;</button>
         </div>
     </div>
@@ -50,15 +105,61 @@
     {{ request.user.username|json_script:"current-username" }}
 
     <script src="{% static 'chatie/js/room.js' %}"></script>
+    <script src="{% static 'chatie/js/presence.js' %}"></script>
     <script>
         const roomName = JSON.parse(document.getElementById('room-name').textContent);
         const currentUsername = JSON.parse(document.getElementById('current-username').textContent);
         initChatRoom(roomName, currentUsername);
+        initPresence();
 
         const chatWindow = document.querySelector('#chat-window');
         chatWindow.scrollTop = chatWindow.scrollHeight;
+
+        window.addEventListener('load', function() {
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        });
     </script>
-    <script src="{% static 'chatie/js/presence.js' %}"></script>
-<script>initPresence();</script>
+    <script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                cookie = cookie.trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function deleteMessage(messageId, el) {
+        if (!confirm('Delete this message?')) return;
+
+        fetch('/chatie/delete-message/' + messageId + '/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        }).then(function() {
+            const bubble = el.closest('.message-bubble');
+            bubble.innerHTML = '<div class="deleted-text">This message was deleted</div>';
+        });
+    }
+    let currentReplyId = null;
+
+function setReply(messageId, sender, text) {
+    currentReplyId = messageId;
+    document.getElementById('reply-preview-sender').textContent = sender;
+    document.getElementById('reply-preview-text').textContent = text || 'Media message';
+    document.getElementById('reply-preview-bar').style.display = 'flex';
+    document.getElementById('chat-message-input').focus();
+}
+
+function cancelReply() {
+    currentReplyId = null;
+    document.getElementById('reply-preview-bar').style.display = 'none';
+}
+    </script>
 </body>
 </html>

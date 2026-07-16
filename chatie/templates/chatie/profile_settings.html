@@ -1,0 +1,49 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Profile - VChaTie</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'chatie/img/logo.svg' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+</head>
+<body>
+    <div class="new-convo-page">
+        <div class="new-convo-header">
+            <a href="{% url 'inbox' %}">&larr; Back to Inbox</a>
+            <h2>Profile Picture</h2>
+        </div>
+
+        <div class="new-convo-form" style="text-align:center;">
+            {% if profile.avatar %}
+                <img src="{{ profile.avatar.url }}" class="profile-preview" id="preview-img">
+            {% else %}
+                <div class="profile-preview-placeholder" id="preview-placeholder">{{ request.user.username|slice:":1"|upper }}</div>
+                <img src="" class="profile-preview" id="preview-img" style="display:none;">
+            {% endif %}
+
+            <form method="POST" enctype="multipart/form-data" style="margin-top:24px;">
+                {% csrf_token %}
+                <label for="avatar-input" class="upload-btn">Choose Photo</label>
+                <input type="file" name="avatar" id="avatar-input" accept="image/*" style="display:none;" required onchange="this.form.submit()">
+            </form>
+
+            {% if profile.avatar %}
+                <form method="POST" action="{% url 'delete_avatar' %}" style="margin-top:12px;">
+                    {% csrf_token %}
+                    <button type="submit" class="remove-photo-btn" onclick="return confirm('Remove your profile photo?');">Remove Photo</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+    <div style="margin-top:30px; text-align:center;">
+    <label class="section-label">About / Bio</label>
+    <form method="POST">
+        {% csrf_token %}
+        <textarea name="bio" maxlength="150" placeholder="Hey there! I'm using VChaTie." class="bio-textarea">{{ profile.bio }}</textarea>
+        <button type="submit" class="btn-bio">Save Bio</button>
+    </form>
+</div>
+</body>
+</html>

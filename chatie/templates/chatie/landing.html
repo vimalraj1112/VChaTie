@@ -1,0 +1,23 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VChaTie</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'chatie/img/logo.svg' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+</head>
+<body>
+    <div class="landing-page">
+        <img src="{% static 'chatie/img/logo.svg' %}" alt="VChaTie" class="landing-logo">
+        <h1 class="landing-title">VChaTie</h1>
+        <p class="landing-tagline">Chat freely · Stay close</p>
+
+        <div class="landing-buttons">
+            <a href="{% url 'login' %}" class="btn-gold-filled">Login</a>
+            <a href="{% url 'register' %}" class="btn-gold-outline">Register</a>
+        </div>
+    </div>
+</body>
+</html>

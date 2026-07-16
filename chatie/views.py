@@ -1,10 +1,16 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from .models import Conversation, Profile
+from .models import Conversation, Profile,Message
 from django.contrib.auth.models import User
 from django.contrib import messages as django_message
+from django.http import JsonResponse
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
+
+def splash_view(request):
+    return render(request, 'chatie/splash.html')
 
 def login_view(request):
     if request.method == 'POST':
@@ -26,7 +32,7 @@ def logout_view(request):
 
 @login_required
 def inbox(request):
-    conversations = request.user.conversations.all()
+    conversations = request.user.conversations.exclude(deleted_for=request.user)
 
     conversation_data = []
     for conv in conversations:
@@ -60,9 +66,96 @@ def inbox(request):
 
 
 @login_required
+def load_older_messages(request, room_name):
+    conversation = Conversation.objects.get(id=room_name)
+    before_id = request.GET.get('before')
+
+    older = conversation.message.filter(id__lt=before_id).order_by('-timestamp')[:30]
+    older = list(reversed(older))
+
+    data = []
+    for msg in older:
+        data.append({
+            'id': msg.id,
+            'sender': msg.sender.username,
+            'is_sent_by_me': msg.sender_id == request.user.id,
+            'text': msg.text,
+            'is_deleted': msg.is_deleted,
+            'image_url': msg.image.url if msg.image else None,
+            'video_url': msg.video.url if msg.video else None,
+            'audio_url': msg.audio.url if msg.audio else None,
+            'time': msg.timestamp.strftime('%I:%M %p'),
+            'is_read': msg.is_read,
+        })
+
+    return JsonResponse({'messages': data, 'has_more': len(older) == 30})
+@login_required
+def delete_chat(request, conversation_id):
+    conversation = Conversation.objects.get(id=conversation_id)
+    conversation.deleted_for.add(request.user)
+    return redirect('inbox')
+
+@login_required
+def delete_message(request, message_id):
+    try:
+        message = Message.objects.get(id=message_id, sender=request.user)
+        message.text = "This message was deleted"
+        message.image = None
+        message.video = None
+        message.is_deleted = True
+        message.save()
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{message.conversation.id}',
+            {
+                'type': 'message_deleted',
+                'message_id': message.id,
+            }
+        )
+    except Message.DoesNotExist:
+        pass
+
+    return JsonResponse({'success': True})
+
+@login_required
+def leave_group(request,conversation_id):
+    conversation=Conversation.objects.get(id=conversation_id)
+    
+    if conversation.is_group:
+        conversation.participants.remove(request.user)
+
+    return redirect('inbox')    
+
+@login_required
+def profile_settings(request):
+    profile, created = Profile.objects.get_or_create(user=request.user)
+
+    if request.method == 'POST':
+        if request.FILES.get('avatar'):
+            profile.avatar = request.FILES['avatar']
+        if 'bio' in request.POST:
+            profile.bio = request.POST.get('bio', '').strip()
+        profile.save()
+        return redirect('profile_settings')
+
+    return render(request, 'chatie/profile_settings.html', {
+        'profile': profile
+    })
+@login_required
+def delete_avatar(request):
+    profile, created = Profile.objects.get_or_create(user=request.user)
+    profile.avatar.delete(save=False)
+    profile.avatar = None
+    profile.save()
+    return redirect('profile_settings')
+
+@login_required
 def room(request, room_name):
     conversation = Conversation.objects.get(id=room_name)
-    messages = conversation.message.all()
+
+    all_messages = conversation.message.all().order_by('-timestamp')[:30]
+    messages = list(reversed(all_messages))
 
     conversation.message.exclude(sender=request.user).update(is_read=True)
 
@@ -70,19 +163,25 @@ def room(request, room_name):
         display_name = conversation.group_name
         other_user = None
         other_online = False
+        other_bio = None
     else:
         other_user = conversation.participants.exclude(id=request.user.id).first()
         display_name = other_user.username if other_user else 'Unknown'
         try:
             other_online = other_user.profile.is_online
+            other_bio = other_user.profile.bio
         except Profile.DoesNotExist:
             other_online = False
+            other_bio = None
 
     return render(request, 'chatie/room.html', {
         'room_name': room_name,
         'messages': messages,
         'display_name': display_name,
         'other_online': other_online,
+        'other_bio': other_bio,
+        'is_group': conversation.is_group,
+        'created_at': conversation.created_at,
     })
 
 
@@ -143,3 +242,47 @@ def new_conversation(request):
     return render(request, 'chatie/new_conversation.html', {
         'users': users
     })
+
+@login_required
+def upload_media(request, room_name):
+    if request.method == 'POST' and request.FILES.get('file'):
+        conversation = Conversation.objects.get(id=room_name)
+        uploaded_file = request.FILES['file']
+
+        message = Message(conversation=conversation, sender=request.user)
+
+        content_type = uploaded_file.content_type
+        if content_type.startswith('image/'):
+            message.image = uploaded_file
+        elif content_type.startswith('video/'):
+            message.video = uploaded_file
+        elif content_type.startswith('audio/'):
+            message.audio = uploaded_file
+        else:
+            return JsonResponse({'error': 'Unsupported file type'}, status=400)
+
+        message.save()
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{room_name}',
+            {
+                'type': 'chat_message',
+                'message': '',
+                'sender': request.user.username,
+                'message_id': message.id,
+                'image_url': message.image.url if message.image else None,
+                'video_url': message.video.url if message.video else None,
+                'audio_url': message.audio.url if message.audio else None,
+            }
+        )
+
+        return JsonResponse({'success': True})
+
+    return JsonResponse({'error': 'Invalid request'}, status=400)
+
+def landing_view(request):
+    if request.user.is_authenticated:
+        return redirect('inbox')
+    return render(request, 'chatie/landing.html')
+
