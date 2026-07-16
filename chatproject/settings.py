@@ -16,8 +16,7 @@ import dj_database_url
 from decouple import config
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-ALLOWED_HOSTS = ['vchatie.onrender.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['vchatieapp.onrender.com', 'localhost', '127.0.0.1']
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
