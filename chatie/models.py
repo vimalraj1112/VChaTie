@@ -1,5 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import User
+from decouple import config
+
+if config('CLOUDINARY_CLOUD_NAME', default=''):
+    from cloudinary_storage.storage import VideoMediaCloudinaryStorage
+    media_storage = VideoMediaCloudinaryStorage()
+else:
+    media_storage = None
 
 class Profile(models.Model):
     user=models.OneToOneField(User,on_delete=models.CASCADE)
@@ -28,8 +35,8 @@ class Message(models.Model):
     sender=models.ForeignKey(User,on_delete=models.CASCADE)
     text=models.TextField(blank=True)    
     image=models.ImageField(upload_to='chat_images/',blank=True,null=True)
-    video=models.FileField(upload_to='chat_videos',blank=True,null=True)
-    audio=models.FileField(upload_to='chat_audio',blank=True,null=True)
+    video=models.FileField(upload_to='chat_videos',blank=True,null=True,storage=media_storage)
+    audio=models.FileField(upload_to='chat_audio',blank=True,null=True,storage=media_storage)
     timestamp=models.DateTimeField(auto_now_add=True)
     is_read=models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
