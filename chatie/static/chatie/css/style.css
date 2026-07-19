@@ -199,17 +199,18 @@ body {
 .message-input-bar {
     display: flex;
     align-items: center;
-    padding: 10px;
+    padding: 8px;
     background-color: #062a20;
-    gap: 8px;
+    gap: 6px;
     position: sticky;
     bottom: 0;
     z-index: 10;
 }
 
 .message-input-bar input[type="text"] {
-    flex-grow: 1;
-    padding: 10px 16px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 10px 14px;
     border: 1px solid #c9a24b;
     border-radius: 20px;
     font-size: 14px;
@@ -223,10 +224,11 @@ body {
     color: #0a3d2e;
     border: none;
     border-radius: 50%;
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
     font-size: 16px;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .msg-meta {
@@ -954,5 +956,11 @@ html, body {
 
     .message-bubble {
         max-width: 80%;
+    }
+}
+@media (hover: none) {
+    .reply-btn,
+    .delete-msg-btn {
+        opacity: 1;
     }
 }
