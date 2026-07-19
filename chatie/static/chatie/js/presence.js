@@ -1,7 +1,8 @@
 function initPresence() {
     console.log('initPresence() called');
 
-    const presenceSocket = new WebSocket('ws://' + window.location.host + '/ws/presence/');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const presenceSocket = new WebSocket(wsProtocol + window.location.host + '/ws/presence/');
 
     presenceSocket.onopen = function() {
         console.log('Presence socket OPENED successfully');

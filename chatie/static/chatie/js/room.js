@@ -1,7 +1,8 @@
 function initChatRoom(roomName, currentUsername) {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     const chatSocket = new WebSocket(
-        'ws://' + window.location.host + '/ws/chat/' + roomName + '/'
-    );
+        wsProtocol + window.location.host + '/ws/chat/' + roomName + '/'
+);
 
     chatSocket.onopen = function() {
         console.log('Chat socket OPENED for room', roomName);
