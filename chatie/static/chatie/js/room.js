@@ -45,10 +45,26 @@ function loadOlderMessages() {
                 return;
             }
 
+            let lastLabelInBatch = null;
+            const firstExistingDivider = chatWindow.querySelector('.date-divider span');
+            let currentTopLabel = firstExistingDivider ? firstExistingDivider.textContent : null;
+
+            const fragment = document.createDocumentFragment();
+
             data.messages.forEach(function(msg) {
-                const bubble = buildHistoryBubble(msg);
-                chatWindow.insertBefore(bubble, chatWindow.firstChild);
+                if (msg.date_label !== lastLabelInBatch) {
+                    if (!(msg.date_label === currentTopLabel && lastLabelInBatch === null)) {
+                        const divider = document.createElement('div');
+                        divider.className = 'date-divider';
+                        divider.innerHTML = '<span>' + msg.date_label + '</span>';
+                        fragment.appendChild(divider);
+                    }
+                    lastLabelInBatch = msg.date_label;
+                }
+                fragment.appendChild(buildHistoryBubble(msg));
             });
+
+            chatWindow.insertBefore(fragment, chatWindow.firstChild);
 
             oldestLoadedId = data.messages[0].id;
             hasMoreMessages = data.has_more;

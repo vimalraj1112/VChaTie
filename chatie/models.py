@@ -22,6 +22,7 @@ class Conversation(models.Model):
     participants=models.ManyToManyField(User,related_name='conversations')
     is_group=models.BooleanField(default=False)
     group_name=models.CharField(max_length=200,blank=True)
+    group_photo=models.ImageField(upload_to='group_photos/',blank=True,null=True)
     created_at=models.DateTimeField(auto_now_add=True)
     deleted_for=models.ManyToManyField(User,related_name='deleted_conversations',blank=True)
 

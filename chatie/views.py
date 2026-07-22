@@ -7,6 +7,22 @@ from django.contrib import messages as django_message
 from django.http import JsonResponse
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.utils import timezone
+
+def get_date_label(dt):
+    local_dt = timezone.localtime(dt)
+    today = timezone.localdate()
+    msg_date = local_dt.date()
+    diff = (today - msg_date).days
+
+    if diff == 0:
+        return "Today"
+    elif diff == 1:
+        return "Yesterday"
+    elif diff < 7:
+        return local_dt.strftime("%A")  
+    else:
+        return local_dt.strftime("%B %d, %Y")  
 
 
 def splash_view(request):
@@ -86,6 +102,7 @@ def load_older_messages(request, room_name):
             'audio_url': msg.audio.url if msg.audio else None,
             'time': msg.timestamp.strftime('%I:%M %p'),
             'is_read': msg.is_read,
+            'date_label': get_date_label(msg.timestamp),
         })
 
     return JsonResponse({'messages': data, 'has_more': len(older) == 30})
@@ -155,7 +172,16 @@ def room(request, room_name):
     conversation = Conversation.objects.get(id=room_name)
 
     all_messages = conversation.message.all().order_by('-timestamp')[:30]
-    messages = list(reversed(all_messages))
+    messages_list = list(reversed(all_messages))
+
+    grouped_items = []
+    last_date_label = None
+    for msg in messages_list:
+        label = get_date_label(msg.timestamp)
+        if label != last_date_label:
+            grouped_items.append({'is_date': True, 'label': label})
+            last_date_label = label
+        grouped_items.append({'is_date': False, 'msg': msg})
 
     conversation.message.exclude(sender=request.user).update(is_read=True)
 
@@ -163,27 +189,31 @@ def room(request, room_name):
         display_name = conversation.group_name
         other_user = None
         other_online = False
-        other_bio = None
+        other_last_seen = None
+        other_avatar = None
     else:
         other_user = conversation.participants.exclude(id=request.user.id).first()
         display_name = other_user.username if other_user else 'Unknown'
         try:
             other_online = other_user.profile.is_online
-            other_bio = other_user.profile.bio
+            other_last_seen = other_user.profile.last_seen
+            other_avatar = other_user.profile.avatar.url if other_user.profile.avatar else None
         except Profile.DoesNotExist:
             other_online = False
-            other_bio = None
+            other_last_seen = None
+            other_avatar = None
 
     return render(request, 'chatie/room.html', {
         'room_name': room_name,
-        'messages': messages,
+        'grouped_items': grouped_items,
         'display_name': display_name,
         'other_online': other_online,
-        'other_bio': other_bio,
+        'other_last_seen': other_last_seen,
+        'other_avatar': other_avatar,
         'is_group': conversation.is_group,
         'created_at': conversation.created_at,
+        'group_photo': conversation.group_photo.url if conversation.group_photo else None,
     })
-
 
 def register_view(request):
     if request.method == 'POST':
@@ -203,6 +233,18 @@ def register_view(request):
         return redirect('inbox')
     return render(request, 'chatie/register.html')
 
+@login_required
+def update_group_photo(request, conversation_id):
+    conversation = Conversation.objects.get(id=conversation_id)
+
+    if not conversation.is_group or request.user not in conversation.participants.all():
+        return redirect('inbox')
+
+    if request.method == 'POST' and request.FILES.get('group_photo'):
+        conversation.group_photo = request.FILES['group_photo']
+        conversation.save()
+
+    return redirect('room', room_name=conversation.id)
 
 @login_required
 def new_conversation(request):

@@ -29,15 +29,17 @@
                 <div class="conversation-item">
                     <a href="{% url 'room' item.conversation.id %}" class="conversation-link">
                         <div class="avatar-circle">
-                            {% if item.other_user.profile.avatar %}
-                                <img src="{{ item.other_user.profile.avatar.url }}" class="avatar-img">
-                            {% else %}
-                                {{ item.display_name|slice:":1"|upper }}
-                            {% endif %}
-                            {% if item.other_user.profile.is_online %}
-                                <span class="online-dot"></span>
-                            {% endif %}
-                        </div>
+    {% if item.conversation.is_group and item.conversation.group_photo %}
+        <img src="{{ item.conversation.group_photo.url }}" class="avatar-img">
+    {% elif item.other_user.profile.avatar %}
+        <img src="{{ item.other_user.profile.avatar.url }}" class="avatar-img">
+    {% else %}
+        {{ item.display_name|slice:":1"|upper }}
+    {% endif %}
+    {% if item.other_user.profile.is_online %}
+        <span class="online-dot"></span>
+    {% endif %}
+</div>
                         <div class="conversation-info">
                             <div class="conversation-name">{{ item.display_name }}</div>
                             <div class="conversation-status">
