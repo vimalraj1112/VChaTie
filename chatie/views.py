@@ -8,6 +8,8 @@ from django.http import JsonResponse
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.utils import timezone
+import json
+from django.http import HttpResponse
 
 def get_date_label(dt):
     local_dt = timezone.localtime(dt)
@@ -284,6 +286,33 @@ def new_conversation(request):
     return render(request, 'chatie/new_conversation.html', {
         'users': users
     })
+
+
+@login_required
+def export_chat(request, room_name):
+    conversation = Conversation.objects.get(id=room_name)
+
+    # Security check: only participants can export
+    if request.user not in conversation.participants.all():
+        return redirect('inbox')
+
+    messages = conversation.message.all().order_by('timestamp')
+
+    data = []
+    for msg in messages:
+        data.append({
+            'sender': msg.sender.username,
+            'timestamp': msg.timestamp.strftime('%d/%m/%Y, %I:%M %p'),
+            'text': msg.text if not msg.is_deleted else 'This message was deleted',
+            'type': 'image' if msg.image else 'video' if msg.video else 'audio' if msg.audio else 'text',
+        })
+
+    response = HttpResponse(
+        json.dumps(data, indent=2, ensure_ascii=False),
+        content_type='application/json'
+    )
+    response['Content-Disposition'] = f'attachment; filename="chat_export_{conversation.id}.json"'
+    return response
 
 @login_required
 def upload_media(request, room_name):

@@ -12,47 +12,56 @@
 <body>
     <div class="app-container">
         <div class="room-header">
-    <a href="{% url 'inbox' %}">&larr;</a>
-    {% if is_group %}
-        <label for="group-photo-input" class="room-avatar-wrapper">
-            {% if group_photo %}
-                <img src="{{ group_photo }}" class="room-avatar-img">
+            <a href="{% url 'inbox' %}">&larr;</a>
+            {% if is_group %}
+                <label for="group-photo-input" class="room-avatar-wrapper">
+                    {% if group_photo %}
+                        <img src="{{ group_photo }}" class="room-avatar-img">
+                    {% else %}
+                        <div class="room-avatar-placeholder">{{ display_name|slice:":1"|upper }}</div>
+                    {% endif %}
+                </label>
+                <form method="POST" action="{% url 'update_group_photo' room_name %}" enctype="multipart/form-data" id="group-photo-form">
+                    {% csrf_token %}
+                    <input type="file" id="group-photo-input" name="group_photo" accept="image/*" style="display:none;" onchange="document.getElementById('group-photo-form').submit()">
+                </form>
             {% else %}
-                <div class="room-avatar-placeholder">{{ display_name|slice:":1"|upper }}</div>
+                <div class="room-avatar-wrapper">
+                    {% if other_avatar %}
+                        <img src="{{ other_avatar }}" class="room-avatar-img">
+                    {% else %}
+                        <div class="room-avatar-placeholder">{{ display_name|slice:":1"|upper }}</div>
+                    {% endif %}
+                </div>
             {% endif %}
-        </label>
-        <form method="POST" action="{% url 'update_group_photo' room_name %}" enctype="multipart/form-data" id="group-photo-form">
-            {% csrf_token %}
-            <input type="file" id="group-photo-input" name="group_photo" accept="image/*" style="display:none;" onchange="document.getElementById('group-photo-form').submit()">
-        </form>
-    {% else %}
-        <div class="room-avatar-wrapper">
-            {% if other_avatar %}
-                <img src="{{ other_avatar }}" class="room-avatar-img">
-            {% else %}
-                <div class="room-avatar-placeholder">{{ display_name|slice:":1"|upper }}</div>
+            <div>
+                <div class="room-title">{{ display_name }}</div>
+                {% if is_group %}
+                    <div class="room-subtitle">Group · Created {{ created_at|date:"M d, Y" }}</div>
+                {% elif other_online %}
+                    <div class="room-subtitle status-online" id="room-subtitle" data-username="{{ display_name }}">Online</div>
+                {% elif other_last_seen %}
+                    <div class="room-subtitle" id="room-subtitle" data-username="{{ display_name }}">Last seen {{ other_last_seen|date:"M d, g:i A" }}</div>
+                {% else %}
+                    <div class="room-subtitle" id="room-subtitle" data-username="{{ display_name }}">Offline</div>
+                {% endif %}
+            </div>
+            {% if is_group %}
+                <form method="POST" action="{% url 'leave_group' room_name %}" class="leave-group-form">
+                    {% csrf_token %}
+                    <button type="submit" class="leave-group-btn" onclick="return confirm('Leave this group?');">Leave</button>
+                </form>
             {% endif %}
+            <div class="room-menu-wrapper">
+                <button class="room-menu-btn" onclick="toggleRoomMenu()">&#8942;</button>
+                <div class="room-menu-dropdown" id="room-menu-dropdown">
+                    {% if not is_group %}
+                        <a href="#" class="room-menu-item">View Profile</a>
+                    {% endif %}
+                    <a href="{% url 'export_chat' room_name %}" class="room-menu-item">Export Chat</a>
+                </div>
+            </div>
         </div>
-    {% endif %}
-    <div>
-        <div class="room-title">{{ display_name }}</div>
-        {% if is_group %}
-            <div class="room-subtitle">Group · Created {{ created_at|date:"M d, Y" }}</div>
-        {% elif other_online %}
-            <div class="room-subtitle status-online">Online</div>
-        {% elif other_last_seen %}
-            <div class="room-subtitle">Last seen {{ other_last_seen|date:"M d, g:i A" }}</div>
-        {% else %}
-            <div class="room-subtitle">Offline</div>
-        {% endif %}
-    </div>
-    {% if is_group %}
-        <form method="POST" action="{% url 'leave_group' room_name %}" class="leave-group-form">
-            {% csrf_token %}
-            <button type="submit" class="leave-group-btn" onclick="return confirm('Leave this group?');">Leave</button>
-        </form>
-    {% endif %}
-</div>
 
         <div id="chat-window" class="chat-window">
             {% for item in grouped_items %}
@@ -205,6 +214,18 @@
         currentReplyId = null;
         document.getElementById('reply-preview-bar').style.display = 'none';
     }
+
+    function toggleRoomMenu() {
+        const dropdown = document.getElementById('room-menu-dropdown');
+        dropdown.classList.toggle('show');
+    }
+
+    document.addEventListener('click', function(e) {
+        const wrapper = document.querySelector('.room-menu-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            document.getElementById('room-menu-dropdown').classList.remove('show');
+        }
+    });
     </script>
 </body>
 </html>

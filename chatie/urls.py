@@ -18,4 +18,5 @@ urlpatterns=[
     path('profile/delete-photo/', views.delete_avatar, name='delete_avatar'),
     path('room/<str:room_name>/older-messages/', views.load_older_messages, name='load_older_messages'),
   path('room/<int:conversation_id>/group-photo/', views.update_group_photo, name='update_group_photo'),
+  path('room/<str:room_name>/export/', views.export_chat, name='export_chat'),
 ]
