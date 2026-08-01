@@ -120,9 +120,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
 
 class PresenceConsumer(AsyncWebsocketConsumer):
-    """A lightweight connection that stays open on EVERY page (inbox, room, etc.)
-    purely to track whether a user is actively using the app right now."""
-
+   
     async def connect(self):
         self.user = self.scope['user']
 
@@ -141,3 +139,38 @@ class PresenceConsumer(AsyncWebsocketConsumer):
         profile, created = Profile.objects.get_or_create(user=self.user)
         profile.is_online = status
         profile.save()
+
+class CallConsumer(AsyncWebsocketConsumer):
+
+    async def connect(self):
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        self.call_group_name = f'call_{self.room_name}'
+        self.user = self.scope['user']
+
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+
+        await self.channel_layer.group_add(self.call_group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.call_group_name, self.channel_name)
+
+    async def receive(self, text_data):
+        data = json.loads(text_data)
+        await self.channel_layer.group_send(
+            self.call_group_name,
+            {
+                'type': 'call_signal',
+                'signal_type': data.get('type'),
+                'sender': self.user.username,
+            }
+        )
+
+    async def call_signal(self, event):
+        if event['sender'] != self.user.username:
+            await self.send(text_data=json.dumps({
+                'type': event['signal_type'],
+                'sender': event['sender'],
+            }))       
