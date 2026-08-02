@@ -2,7 +2,7 @@ function initChatRoom(roomName, currentUsername) {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     const chatSocket = new WebSocket(
         wsProtocol + window.location.host + '/ws/chat/' + roomName + '/'
-);
+    );
 
     chatSocket.onopen = function() {
         console.log('Chat socket OPENED for room', roomName);
@@ -16,126 +16,131 @@ function initChatRoom(roomName, currentUsername) {
     let typingTimeout;
 
     let oldestLoadedId = null;
-let isLoadingOlder = false;
-let hasMoreMessages = true;
+    let isLoadingOlder = false;
+    let hasMoreMessages = true;
 
-const firstBubble = chatWindow.querySelector('.message-bubble');
-if (firstBubble) {
-    oldestLoadedId = firstBubble.dataset.messageId;
-}
-
-chatWindow.addEventListener('scroll', function() {
-    if (chatWindow.scrollTop < 50 && !isLoadingOlder && hasMoreMessages) {
-        loadOlderMessages();
+    const firstBubble = chatWindow.querySelector('.message-bubble');
+    if (firstBubble) {
+        oldestLoadedId = firstBubble.dataset.messageId;
     }
-});
 
-function loadOlderMessages() {
-    if (!oldestLoadedId) return;
-    isLoadingOlder = true;
+    chatWindow.addEventListener('scroll', function() {
+        if (chatWindow.scrollTop < 50 && !isLoadingOlder && hasMoreMessages) {
+            loadOlderMessages();
+        }
+    });
 
-    const previousScrollHeight = chatWindow.scrollHeight;
+    function loadOlderMessages() {
+        if (!oldestLoadedId) return;
+        isLoadingOlder = true;
 
-    fetch(window.location.pathname + 'older-messages/?before=' + oldestLoadedId)
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-            if (data.messages.length === 0) {
-                hasMoreMessages = false;
-                isLoadingOlder = false;
-                return;
-            }
+        const previousScrollHeight = chatWindow.scrollHeight;
 
-            let lastLabelInBatch = null;
-            const firstExistingDivider = chatWindow.querySelector('.date-divider span');
-            let currentTopLabel = firstExistingDivider ? firstExistingDivider.textContent : null;
-
-            const fragment = document.createDocumentFragment();
-
-            data.messages.forEach(function(msg) {
-                if (msg.date_label !== lastLabelInBatch) {
-                    if (!(msg.date_label === currentTopLabel && lastLabelInBatch === null)) {
-                        const divider = document.createElement('div');
-                        divider.className = 'date-divider';
-                        divider.innerHTML = '<span>' + msg.date_label + '</span>';
-                        fragment.appendChild(divider);
-                    }
-                    lastLabelInBatch = msg.date_label;
+        fetch(window.location.pathname + 'older-messages/?before=' + oldestLoadedId)
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.messages.length === 0) {
+                    hasMoreMessages = false;
+                    isLoadingOlder = false;
+                    return;
                 }
-                fragment.appendChild(buildHistoryBubble(msg));
+
+                let lastLabelInBatch = null;
+                const firstExistingDivider = chatWindow.querySelector('.date-divider span');
+                let currentTopLabel = firstExistingDivider ? firstExistingDivider.textContent : null;
+
+                const fragment = document.createDocumentFragment();
+
+                data.messages.forEach(function(msg) {
+                    if (msg.date_label !== lastLabelInBatch) {
+                        if (!(msg.date_label === currentTopLabel && lastLabelInBatch === null)) {
+                            const divider = document.createElement('div');
+                            divider.className = 'date-divider';
+                            divider.innerHTML = '<span>' + msg.date_label + '</span>';
+                            fragment.appendChild(divider);
+                        }
+                        lastLabelInBatch = msg.date_label;
+                    }
+                    fragment.appendChild(buildHistoryBubble(msg));
+                });
+
+                chatWindow.insertBefore(fragment, chatWindow.firstChild);
+
+                oldestLoadedId = data.messages[0].id;
+                hasMoreMessages = data.has_more;
+
+                chatWindow.scrollTop = chatWindow.scrollHeight - previousScrollHeight;
+                isLoadingOlder = false;
             });
-
-            chatWindow.insertBefore(fragment, chatWindow.firstChild);
-
-            oldestLoadedId = data.messages[0].id;
-            hasMoreMessages = data.has_more;
-
-            chatWindow.scrollTop = chatWindow.scrollHeight - previousScrollHeight;
-            isLoadingOlder = false;
-        });
-}
-
-function buildHistoryBubble(msg) {
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble ' + (msg.is_sent_by_me ? 'message-sent' : 'message-received');
-    bubble.dataset.messageId = msg.id;
-
-    if (!msg.is_sent_by_me) {
-        const nameTag = document.createElement('div');
-        nameTag.className = 'message-sender-name';
-        nameTag.textContent = msg.sender;
-        bubble.appendChild(nameTag);
     }
 
-    if (msg.is_deleted) {
-        const deletedText = document.createElement('div');
-        deletedText.className = 'deleted-text';
-        deletedText.textContent = 'This message was deleted';
-        bubble.appendChild(deletedText);
-    } else if (msg.image_url) {
-        const link = document.createElement('a');
-        link.href = msg.image_url;
-        link.target = '_blank';
-        link.className = 'media-link';
-        const img = document.createElement('img');
-        img.src = msg.image_url;
-        img.className = 'media-bubble';
-        link.appendChild(img);
-        bubble.appendChild(link);
-    } else if (msg.video_url) {
-        const vid = document.createElement('video');
-        vid.src = msg.video_url;
-        vid.controls = true;
-        vid.className = 'media-bubble';
-        bubble.appendChild(vid);
-    } else if (msg.audio_url) {
-        const audio = document.createElement('audio');
-        audio.src = msg.audio_url;
-        audio.controls = true;
-        audio.className = 'audio-bubble';
-        bubble.appendChild(audio);
-    } else {
-        const textNode = document.createElement('div');
-        textNode.textContent = msg.text;
-        bubble.appendChild(textNode);
+    function buildHistoryBubble(msg) {
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble ' + (msg.is_sent_by_me ? 'message-sent' : 'message-received');
+        bubble.dataset.messageId = msg.id;
+
+        if (!msg.is_sent_by_me) {
+            const nameTag = document.createElement('div');
+            nameTag.className = 'message-sender-name';
+            nameTag.textContent = msg.sender;
+            bubble.appendChild(nameTag);
+        }
+
+        if (msg.call_type) {
+            const callDiv = document.createElement('div');
+            callDiv.className = 'call-log-bubble';
+            callDiv.textContent = msg.call_type.charAt(0).toUpperCase() + msg.call_type.slice(1) + ' call · ' + (msg.call_duration ? msg.call_duration + 's' : 'Missed');
+            bubble.appendChild(callDiv);
+        } else if (msg.is_deleted) {
+            const deletedText = document.createElement('div');
+            deletedText.className = 'deleted-text';
+            deletedText.textContent = 'This message was deleted';
+            bubble.appendChild(deletedText);
+        } else if (msg.image_url) {
+            const link = document.createElement('a');
+            link.href = msg.image_url;
+            link.target = '_blank';
+            link.className = 'media-link';
+            const img = document.createElement('img');
+            img.src = msg.image_url;
+            img.className = 'media-bubble';
+            link.appendChild(img);
+            bubble.appendChild(link);
+        } else if (msg.video_url) {
+            const vid = document.createElement('video');
+            vid.src = msg.video_url;
+            vid.controls = true;
+            vid.className = 'media-bubble';
+            bubble.appendChild(vid);
+        } else if (msg.audio_url) {
+            const audio = document.createElement('audio');
+            audio.src = msg.audio_url;
+            audio.controls = true;
+            audio.className = 'audio-bubble';
+            bubble.appendChild(audio);
+        } else {
+            const textNode = document.createElement('div');
+            textNode.textContent = msg.text;
+            bubble.appendChild(textNode);
+        }
+
+        const meta = document.createElement('div');
+        meta.className = 'msg-meta';
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'msg-time';
+        timeSpan.textContent = msg.time;
+        meta.appendChild(timeSpan);
+
+        if (msg.is_sent_by_me) {
+            const tick = document.createElement('span');
+            tick.className = 'tick ' + (msg.is_read ? 'tick-blue' : 'tick-gray');
+            tick.innerHTML = msg.is_read ? '&#10003;&#10003;' : '&#10003;';
+            meta.appendChild(tick);
+        }
+
+        bubble.appendChild(meta);
+        return bubble;
     }
-
-    const meta = document.createElement('div');
-    meta.className = 'msg-meta';
-    const timeSpan = document.createElement('span');
-    timeSpan.className = 'msg-time';
-    timeSpan.textContent = msg.time;
-    meta.appendChild(timeSpan);
-
-    if (msg.is_sent_by_me) {
-        const tick = document.createElement('span');
-        tick.className = 'tick ' + (msg.is_read ? 'tick-blue' : 'tick-gray');
-        tick.innerHTML = msg.is_read ? '&#10003;&#10003;' : '&#10003;';
-        meta.appendChild(tick);
-    }
-
-    bubble.appendChild(meta);
-    return bubble;
-}
 
     function getCookie(name) {
         let cookieValue = null;
@@ -164,7 +169,7 @@ function buildHistoryBubble(msg) {
         });
     }
 
-    function addMessageToScreen(sender, text, messageId, imageUrl, videoUrl, audioUrl, replySnippet, replySender) {
+    function addMessageToScreen(sender, text, messageId, imageUrl, videoUrl, audioUrl, replySnippet, replySender, callType, callDuration) {
         const bubble = document.createElement('div');
         const isSentByMe = sender === currentUsername;
         bubble.className = 'message-bubble ' + (isSentByMe ? 'message-sent' : 'message-received');
@@ -202,7 +207,12 @@ function buildHistoryBubble(msg) {
             bubble.appendChild(replyPreview);
         }
 
-        if (imageUrl) {
+        if (callType) {
+            const callDiv = document.createElement('div');
+            callDiv.className = 'call-log-bubble';
+            callDiv.textContent = callType.charAt(0).toUpperCase() + callType.slice(1) + ' call · ' + (callDuration ? callDuration + 's' : 'Missed');
+            bubble.appendChild(callDiv);
+        } else if (imageUrl) {
             const link = document.createElement('a');
             link.href = imageUrl;
             link.target = '_blank';
@@ -271,7 +281,18 @@ function buildHistoryBubble(msg) {
         const data = JSON.parse(e.data);
 
         if (data.type === 'message') {
-            addMessageToScreen(data.sender, data.message, data.message_id, data.image_url, data.video_url, data.audio_url, data.reply_snippet, data.reply_sender);
+            addMessageToScreen(
+                data.sender,
+                data.message,
+                data.message_id,
+                data.image_url,
+                data.video_url,
+                data.audio_url,
+                data.reply_snippet,
+                data.reply_sender,
+                data.call_type,
+                data.call_duration
+            );
         }
 
         if (data.type === 'read_receipt') {

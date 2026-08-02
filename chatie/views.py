@@ -313,7 +313,34 @@ def export_chat(request, room_name):
     )
     response['Content-Disposition'] = f'attachment; filename="chat_export_{conversation.id}.json"'
     return response
+@login_required
+def log_call(request, room_name):
+    if request.method == 'POST':
+        conversation = Conversation.objects.get(id=room_name)
+        call_type = request.POST.get('call_type', 'audio')
+        duration = int(request.POST.get('duration', 0))
 
+        message = Message.objects.create(
+            conversation=conversation,
+            sender=request.user,
+            call_type=call_type,
+            call_duration=duration
+        )
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{room_name}',
+            {
+                'type': 'chat_message',
+                'message': '',
+                'sender': request.user.username,
+                'message_id': message.id,
+                'call_type': call_type,
+                'call_duration': duration,
+            }
+        )
+        return JsonResponse({'success': True})
+    return JsonResponse({'error': 'Invalid request'}, status=400)
 @login_required
 def upload_media(request, room_name):
     if request.method == 'POST' and request.FILES.get('file'):

@@ -846,6 +846,7 @@ body {
 .audio-bubble {
     max-width: 220px;
     height: 40px;
+    
 }
 .fab-new-chat {
     position: fixed;
@@ -1108,4 +1109,9 @@ html, body {
     align-items: center;
     gap: 4px;
     margin-left: auto;
+}
+.call-log-bubble {
+    font-style: italic;
+    color:#0a3d2e;
+    font-size: 13px;
 }

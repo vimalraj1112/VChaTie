@@ -68,6 +68,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'audio_url': event.get('audio_url'),
             'reply_snippet': event.get('reply_snippet'),
             'reply_sender': event.get('reply_sender'),
+            'call_type': event.get('call_type'),
+            'call_duration': event.get('call_duration'),
         }))
 
     async def read_receipt(self, event):
@@ -164,6 +166,8 @@ class CallConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'call_signal',
                 'signal_type': data.get('type'),
+                'payload': data.get('payload'),
+                'call_kind': data.get('call_kind'),
                 'sender': self.user.username,
             }
         )
@@ -172,5 +176,7 @@ class CallConsumer(AsyncWebsocketConsumer):
         if event['sender'] != self.user.username:
             await self.send(text_data=json.dumps({
                 'type': event['signal_type'],
+                'payload': event.get('payload'),
+                'call_kind': event.get('call_kind'),
                 'sender': event['sender'],
-            }))       
+            }))      

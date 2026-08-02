@@ -42,6 +42,8 @@ class Message(models.Model):
     is_read=models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
     reply_to=models.ForeignKey('self',on_delete=models.SET_NULL,null=True,blank=True,related_name='replies')
+    call_type = models.CharField(max_length=10, blank=True, null=True)
+    call_duration = models.IntegerField(blank=True, null=True)
 
     class Meta:
         ordering=['timestamp']
