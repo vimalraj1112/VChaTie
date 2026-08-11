@@ -10,6 +10,7 @@ from channels.layers import get_channel_layer
 from django.utils import timezone
 import json
 from django.http import HttpResponse
+from django_ratelimit.decorators import ratelimit
 
 def get_date_label(dt):
     local_dt = timezone.localtime(dt)
@@ -30,6 +31,7 @@ def get_date_label(dt):
 def splash_view(request):
     return render(request, 'chatie/splash.html')
 
+@ratelimit(key='ip', rate='10/m', method='POST', block=True)
 def login_view(request):
     if request.method == 'POST':
         username = request.POST['username']
@@ -82,6 +84,8 @@ def inbox(request):
         'conversation_data': conversation_data
     })
 
+def ratelimited_error(request, exception):
+    return render(request, '429.html', status=429)
 
 @login_required
 def load_older_messages(request, room_name):
@@ -216,7 +220,7 @@ def room(request, room_name):
         'created_at': conversation.created_at,
         'group_photo': conversation.group_photo.url if conversation.group_photo else None,
     })
-
+@ratelimit(key='ip', rate='5/m', method='POST', block=True)
 def register_view(request):
     if request.method == 'POST':
         username = request.POST['username']

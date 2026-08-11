@@ -27,5 +27,6 @@ urlpatterns = [
     path('api/', include('chatie.api_urls')),
 
 ]
+handler403 = 'chatie.views.ratelimited_error'
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

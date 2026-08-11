@@ -1,0 +1,16 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Too Many Requests - VChaTie</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'chatie/img/logo.svg' %}">
+    <link rel="stylesheet" href="{% static 'chatie/css/style.css' %}">
+</head>
+<body>
+    <div class="landing-page">
+        <h1 class="landing-title">Too Many Attempts</h1>
+        <p class="landing-tagline">Please wait a minute before trying again.</p>
+        <a href="{% url 'login' %}" class="btn-gold-filled">Back to Login</a>
+    </div>
+</body>
+</html>

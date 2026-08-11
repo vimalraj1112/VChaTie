@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="{% static 'chatie/manifest.json' %}">
+    <meta name="theme-color" content="#0a3d2e">
 </head>
 <body>
     <div class="app-container">
@@ -64,5 +66,16 @@
     </div>
     <script src="{% static 'chatie/js/presence.js' %}"></script>
     <script>initPresence();</script>
+    <script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/chatie/sw.js')
+        .then(function(reg) {
+            console.log('Service worker registered');
+        })
+        .catch(function(err) {
+            console.log('Service worker registration failed', err);
+        });
+}
+</script>
 </body>
 </html>
