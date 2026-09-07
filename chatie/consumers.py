@@ -1,4 +1,5 @@
 import json
+from django.utils import timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Conversation, Message, Profile
@@ -10,6 +11,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_name = self.scope['url_route']['kwargs']['room_name']
         self.room_group_name = f'chat_{self.room_name}'
         self.user = self.scope['user']
+
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+
+        if not await self._is_participant():
+            await self.close()
+            return
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
@@ -93,6 +102,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }))
 
     @database_sync_to_async
+    def _is_participant(self):
+        return Conversation.objects.filter(
+            id=self.room_name, participants=self.user
+        ).exists()
+
+    @database_sync_to_async
     def save_message(self, message, reply_to_id=None):
         conversation = Conversation.objects.get(id=self.room_name)
         reply_msg = None
@@ -140,6 +155,8 @@ class PresenceConsumer(AsyncWebsocketConsumer):
     def set_online(self, status):
         profile, created = Profile.objects.get_or_create(user=self.user)
         profile.is_online = status
+        if not status:
+            profile.last_seen = timezone.now()
         profile.save()
 
 class CallConsumer(AsyncWebsocketConsumer):

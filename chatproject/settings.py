@@ -174,21 +174,26 @@ LOGIN_URL = 'login'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Only use the manifest/hashed static storage in production. In DEBUG the
+# hashed manifest doesn't exist until `collectstatic` runs, which breaks
+# `{% static %}` resolution during development and tests.
 if config('CLOUDINARY_CLOUD_NAME', default=''):
-    STORAGES = {
-        "default": {
-            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-        },
-    }
+    default_storage = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 else:
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-        },
-    }
+    default_storage = 'django.core.files.storage.FileSystemStorage'
+
+staticfiles_storage = (
+    'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    if not DEBUG
+    else 'django.contrib.staticfiles.storage.StaticFilesStorage'
+)
+
+STORAGES = {
+    "default": {
+        "BACKEND": default_storage,
+    },
+    "staticfiles": {
+        "BACKEND": staticfiles_storage,
+    },
+}

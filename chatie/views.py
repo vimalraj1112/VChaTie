@@ -11,6 +11,9 @@ from django.utils import timezone
 import json
 from django.http import HttpResponse
 from django_ratelimit.decorators import ratelimit
+from django.http import Http404
+from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
 
 def get_date_label(dt):
     local_dt = timezone.localtime(dt)
@@ -25,7 +28,15 @@ def get_date_label(dt):
     elif diff < 7:
         return local_dt.strftime("%A")  
     else:
-        return local_dt.strftime("%B %d, %Y")  
+        return local_dt.strftime("%B %d, %Y")
+
+
+def get_participant_conversation_or_404(request, pk):
+    """Return the conversation if request.user is a participant, else 404."""
+    try:
+        return Conversation.objects.get(pk=pk, participants=request.user)
+    except Conversation.DoesNotExist:
+        raise Http404("Conversation not found or access denied.")
 
 
 def splash_view(request):
@@ -89,11 +100,14 @@ def ratelimited_error(request, exception):
 
 @login_required
 def load_older_messages(request, room_name):
-    conversation = Conversation.objects.get(id=room_name)
+    conversation = get_participant_conversation_or_404(request, room_name)
     before_id = request.GET.get('before')
+    if not before_id:
+        return JsonResponse({'messages': [], 'has_more': False})
 
-    older = conversation.message.filter(id__lt=before_id).order_by('-timestamp')[:30]
-    older = list(reversed(older))
+    older = list(conversation.message.filter(id__lt=before_id).order_by('-timestamp')[:31])
+    has_more = len(older) > 30
+    older = list(reversed(older[:30]))
 
     data = []
     for msg in older:
@@ -111,10 +125,10 @@ def load_older_messages(request, room_name):
             'date_label': get_date_label(msg.timestamp),
         })
 
-    return JsonResponse({'messages': data, 'has_more': len(older) == 30})
+    return JsonResponse({'messages': data, 'has_more': has_more})
 @login_required
 def delete_chat(request, conversation_id):
-    conversation = Conversation.objects.get(id=conversation_id)
+    conversation = get_participant_conversation_or_404(request, conversation_id)
     conversation.deleted_for.add(request.user)
     return redirect('inbox')
 
@@ -143,8 +157,8 @@ def delete_message(request, message_id):
 
 @login_required
 def leave_group(request,conversation_id):
-    conversation=Conversation.objects.get(id=conversation_id)
-    
+    conversation=get_participant_conversation_or_404(request, conversation_id)
+
     if conversation.is_group:
         conversation.participants.remove(request.user)
 
@@ -175,7 +189,7 @@ def delete_avatar(request):
 
 @login_required
 def room(request, room_name):
-    conversation = Conversation.objects.get(id=room_name)
+    conversation = get_participant_conversation_or_404(request, room_name)
 
     all_messages = conversation.message.all().order_by('-timestamp')[:30]
     messages_list = list(reversed(all_messages))
@@ -226,12 +240,14 @@ def register_view(request):
         username = request.POST['username']
         password = request.POST['password']
 
-        if len(password) < 6:
-            django_message.error(request, 'Password must be atleast 6 characters.')
-            return render(request, 'chatie/register.html')
-
         if User.objects.filter(username=username).exists():
             django_message.error(request, 'Username already taken.')
+            return render(request, 'chatie/register.html')
+
+        try:
+            validate_password(password)
+        except ValidationError as errors:
+            django_message.error(request, ' '.join(errors.messages))
             return render(request, 'chatie/register.html')
 
         user = User.objects.create_user(username=username, password=password)
@@ -320,7 +336,7 @@ def export_chat(request, room_name):
 @login_required
 def log_call(request, room_name):
     if request.method == 'POST':
-        conversation = Conversation.objects.get(id=room_name)
+        conversation = get_participant_conversation_or_404(request, room_name)
         call_type = request.POST.get('call_type', 'audio')
         duration = int(request.POST.get('duration', 0))
 
@@ -348,12 +364,23 @@ def log_call(request, room_name):
 @login_required
 def upload_media(request, room_name):
     if request.method == 'POST' and request.FILES.get('file'):
-        conversation = Conversation.objects.get(id=room_name)
+        conversation = get_participant_conversation_or_404(request, room_name)
         uploaded_file = request.FILES['file']
+        content_type = (uploaded_file.content_type or '').lower()
+
+        allowed_types = (
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'video/mp4', 'video/webm', 'video/quicktime', 'video/avi',
+            'audio/mpeg', 'audio/ogg', 'audio/webm', 'audio/wav', 'audio/x-wav',
+        )
+        max_bytes = 15 * 1024 * 1024  # 15 MB
+        if content_type not in allowed_types:
+            return JsonResponse({'error': 'Unsupported file type'}, status=400)
+        if uploaded_file.size is not None and uploaded_file.size > max_bytes:
+            return JsonResponse({'error': 'File too large (max 15 MB)'}, status=413)
 
         message = Message(conversation=conversation, sender=request.user)
 
-        content_type = uploaded_file.content_type
         if content_type.startswith('image/'):
             message.image = uploaded_file
         elif content_type.startswith('video/'):

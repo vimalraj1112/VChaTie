@@ -6,6 +6,8 @@ from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
 
 
 class ConversationListView(generics.ListAPIView):
@@ -22,6 +24,9 @@ class MessageListView(generics.ListAPIView):
 
     def get_queryset(self):
         conversation_id = self.kwargs['conversation_id']
+        conversation = Conversation.objects.filter(id=conversation_id, participants=self.request.user).first()
+        if not conversation:
+            return Message.objects.none()
         return Message.objects.filter(conversation_id=conversation_id)
     
 class LoginAPIView(ObtainAuthToken):
@@ -106,8 +111,10 @@ class RegisterAPIView(APIView):
         username = request.data.get('username', '').strip()
         password = request.data.get('password', '')
 
-        if len(password) < 6:
-            return Response({'error': 'Password must be at least 6 characters'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_password(password)
+        except ValidationError as errors:
+            return Response({'error': ' '.join(errors.messages)}, status=status.HTTP_400_BAD_REQUEST)
 
         if User.objects.filter(username=username).exists():
             return Response({'error': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)

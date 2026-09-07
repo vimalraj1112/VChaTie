@@ -14,6 +14,7 @@ function initChatRoom(roomName, currentUsername) {
 
     const chatWindow = document.querySelector('#chat-window');
     let typingTimeout;
+    let typingPayloadSent = false;
 
     let oldestLoadedId = null;
     let isLoadingOlder = false;
@@ -324,8 +325,14 @@ function initChatRoom(roomName, currentUsername) {
 
     messageInput.focus();
 
+    let _typingDebounceTimer = null;
     messageInput.addEventListener('input', function() {
+        if (chatSocket.readyState !== WebSocket.OPEN) return;
+        if (_typingDebounceTimer !== null) return;
         chatSocket.send(JSON.stringify({ type: 'typing' }));
+        _typingDebounceTimer = setTimeout(function () {
+            _typingDebounceTimer = null;
+        }, 1200);
     });
 
     messageInput.addEventListener('keyup', function(e) {
