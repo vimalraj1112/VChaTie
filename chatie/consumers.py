@@ -1,8 +1,11 @@
 import json
+import logging
 from django.utils import timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Conversation, Message, Profile
+
+logger = logging.getLogger(__name__)
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -12,18 +15,33 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = f'chat_{self.room_name}'
         self.user = self.scope['user']
 
+        logger.warning(
+            'ChatConsumer.connect room=%s user=%s authenticated=%s scheme=%s',
+            self.room_name, getattr(self.user, 'username', None),
+            self.user.is_authenticated, self.scope.get('scheme'),
+        )
+
         if not self.user.is_authenticated:
-            await self.close()
+            await self.close(code=4001)
             return
 
         if not await self._is_participant():
-            await self.close()
+            await self.close(code=4003)
             return
 
-        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        except Exception:
+            logger.exception('ChatConsumer: Redis group_add failed')
+            await self.close(code=1011)
+            return
+
         await self.accept()
 
-        await self.mark_messages_read()
+        try:
+            await self.mark_messages_read()
+        except Exception:
+            logger.exception('ChatConsumer: mark_messages_read failed')
 
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -31,7 +49,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        if hasattr(self, 'channel_layer') and hasattr(self, 'room_group_name'):
+            try:
+                await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+            except Exception:
+                logger.exception('ChatConsumer: Redis group_discard failed')
 
     async def receive(self, text_data):
         data = json.loads(text_data)
@@ -137,19 +159,31 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
 
 class PresenceConsumer(AsyncWebsocketConsumer):
-   
+
     async def connect(self):
         self.user = self.scope['user']
 
+        logger.warning(
+            'PresenceConsumer.connect user=%s authenticated=%s scheme=%s',
+            getattr(self.user, 'username', None),
+            self.user.is_authenticated, self.scope.get('scheme'),
+        )
+
         if not self.user.is_authenticated:
-            await self.close()
+            await self.close(code=4001)
             return
 
         await self.accept()
-        await self.set_online(True)
+        try:
+            await self.set_online(True)
+        except Exception:
+            logger.exception('PresenceConsumer: set_online(True) failed')
 
     async def disconnect(self, close_code):
-        await self.set_online(False)
+        try:
+            await self.set_online(False)
+        except Exception:
+            logger.exception('PresenceConsumer: set_online(False) failed')
 
     @database_sync_to_async
     def set_online(self, status):
@@ -166,15 +200,31 @@ class CallConsumer(AsyncWebsocketConsumer):
         self.call_group_name = f'call_{self.room_name}'
         self.user = self.scope['user']
 
+        logger.warning(
+            'CallConsumer.connect room=%s user=%s authenticated=%s scheme=%s',
+            self.room_name, getattr(self.user, 'username', None),
+            self.user.is_authenticated, self.scope.get('scheme'),
+        )
+
         if not self.user.is_authenticated:
-            await self.close()
+            await self.close(code=4001)
             return
 
-        await self.channel_layer.group_add(self.call_group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_add(self.call_group_name, self.channel_name)
+        except Exception:
+            logger.exception('CallConsumer: Redis group_add failed')
+            await self.close(code=1011)
+            return
+
         await self.accept()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.call_group_name, self.channel_name)
+        if hasattr(self, 'channel_layer') and hasattr(self, 'call_group_name'):
+            try:
+                await self.channel_layer.group_discard(self.call_group_name, self.channel_name)
+            except Exception:
+                logger.exception('CallConsumer: Redis group_discard failed')
 
     async def receive(self, text_data):
         data = json.loads(text_data)
