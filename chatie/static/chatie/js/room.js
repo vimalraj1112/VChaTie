@@ -1,16 +1,29 @@
 function initChatRoom(roomName, currentUsername) {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const chatSocket = new WebSocket(
-        wsProtocol + window.location.host + '/ws/chat/' + roomName + '/'
-    );
+    let chatSocket;
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
+    let closedByPage = false;
 
-    chatSocket.onopen = function() {
-        console.log('Chat socket OPENED for room', roomName);
-    };
+    function openSocket() {
+        chatSocket = new WebSocket(
+            wsProtocol + window.location.host + '/ws/chat/' + roomName + '/'
+        );
+
+        chatSocket.onopen = function() {
+            console.log('Chat socket OPENED for room', roomName);
+            reconnectAttempts = 0;
+        };
+        chatSocket.onmessage = handleSocketMessage;
+        chatSocket.onclose = handleSocketClose;
+    }
 
     window.addEventListener('pagehide', function() {
-        chatSocket.close();
+        closedByPage = true;
+        if (chatSocket) chatSocket.close();
     });
+
+    openSocket();
 
     const chatWindow = document.querySelector('#chat-window');
     let typingTimeout;
@@ -277,7 +290,7 @@ function initChatRoom(roomName, currentUsername) {
         }, 2000);
     }
 
-    chatSocket.onmessage = function(e) {
+    function handleSocketMessage(e) {
         console.log('Received from server:', e.data);
         const data = JSON.parse(e.data);
 
@@ -316,9 +329,14 @@ function initChatRoom(roomName, currentUsername) {
         }
     };
 
-    chatSocket.onclose = function(e) {
-        console.error('Chat socket closed unexpectedly');
-    };
+    function handleSocketClose(e) {
+        console.error('Chat socket closed unexpectedly', e.code, e.reason);
+        if (closedByPage) return;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+        reconnectAttempts++;
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(openSocket, delay);
+    }
 
     const messageInput = document.querySelector('#chat-message-input');
     const sendButton = document.querySelector('#chat-message-submit');
@@ -344,6 +362,11 @@ function initChatRoom(roomName, currentUsername) {
     sendButton.addEventListener('click', function() {
         const message = messageInput.value.trim();
         if (message === '') return;
+
+        if (chatSocket.readyState !== WebSocket.OPEN) {
+            console.warn('Socket not ready; message not sent.');
+            return;
+        }
 
         const payload = { message: message };
         if (typeof currentReplyId !== 'undefined' && currentReplyId) {
