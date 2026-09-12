@@ -8,6 +8,16 @@ function initPresence() {
         console.log('Presence socket OPENED successfully');
     };
 
+    presenceSocket.onmessage = function(e) {
+        try {
+            const data = JSON.parse(e.data);
+            if (data.type === 'system_error') {
+                console.error('Presence SERVER ERROR:', data.message);
+                alert('Presence unavailable: ' + data.message);
+            }
+        } catch (err) {}
+    };
+
     presenceSocket.onerror = function(e) {
         console.log('Presence socket ERROR:', e);
     };

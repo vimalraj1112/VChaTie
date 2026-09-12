@@ -200,21 +200,35 @@ class PresenceConsumer(AsyncWebsocketConsumer):
             self.user.is_authenticated, self.scope.get('scheme'),
         )
 
+        # Accept first so a DB stall below surfaces as a visible error
+        # instead of blocking the handshake.
+        await self.accept()
+
         if not self.user.is_authenticated:
+            await self._send_system_error('Not authenticated')
             await self.close(code=4001)
             return
 
-        await self.accept()
         try:
             await self.set_online(True)
-        except Exception:
+        except Exception as exc:
             logger.exception('PresenceConsumer: set_online(True) failed')
+            await self._send_system_error(f'DB set_online failed: {exc}')
 
     async def disconnect(self, close_code):
         try:
             await self.set_online(False)
         except Exception:
             logger.exception('PresenceConsumer: set_online(False) failed')
+
+    async def _send_system_error(self, message):
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'system_error',
+                'message': message,
+            }))
+        except Exception:
+            pass
 
     @database_sync_to_async
     def set_online(self, status):
@@ -237,18 +251,22 @@ class CallConsumer(AsyncWebsocketConsumer):
             self.user.is_authenticated, self.scope.get('scheme'),
         )
 
+        # Accept first so a Redis stall below surfaces visibly instead of
+        # blocking the handshake.
+        await self.accept()
+
         if not self.user.is_authenticated:
+            await self._send_system_error('Not authenticated')
             await self.close(code=4001)
             return
 
         try:
             await self.channel_layer.group_add(self.call_group_name, self.channel_name)
-        except Exception:
+        except Exception as exc:
             logger.exception('CallConsumer: Redis group_add failed')
+            await self._send_system_error(f'Redis group_add failed: {exc}')
             await self.close(code=1011)
             return
-
-        await self.accept()
 
     async def disconnect(self, close_code):
         if hasattr(self, 'channel_layer') and hasattr(self, 'call_group_name'):
@@ -256,6 +274,15 @@ class CallConsumer(AsyncWebsocketConsumer):
                 await self.channel_layer.group_discard(self.call_group_name, self.channel_name)
             except Exception:
                 logger.exception('CallConsumer: Redis group_discard failed')
+
+    async def _send_system_error(self, message):
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'system_error',
+                'message': message,
+            }))
+        except Exception:
+            pass
 
     async def receive(self, text_data):
         data = json.loads(text_data)
