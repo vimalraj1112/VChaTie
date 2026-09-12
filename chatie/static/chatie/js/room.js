@@ -294,6 +294,12 @@ function initChatRoom(roomName, currentUsername) {
         console.log('Received from server:', e.data);
         const data = JSON.parse(e.data);
 
+        if (data.type === 'system_error') {
+            console.error('SERVER ERROR:', data.message);
+            alert('Chat unavailable: ' + data.message);
+            return;
+        }
+
         if (data.type === 'message') {
             addMessageToScreen(
                 data.sender,

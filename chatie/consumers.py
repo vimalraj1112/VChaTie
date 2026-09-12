@@ -29,14 +29,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close(code=4003)
             return
 
+        # Accept the socket first so any Redis failure below is visible
+        # to the client instead of surfacing as a silent 1006.
+        await self.accept()
+
         try:
             await self.channel_layer.group_add(self.room_group_name, self.channel_name)
-        except Exception:
+        except Exception as exc:
             logger.exception('ChatConsumer: Redis group_add failed')
+            try:
+                await self.send(text_data=json.dumps({
+                    'type': 'system_error',
+                    'message': f'Redis group_add failed: {exc}',
+                }))
+            except Exception:
+                pass
             await self.close(code=1011)
             return
-
-        await self.accept()
 
         try:
             await self.mark_messages_read()
