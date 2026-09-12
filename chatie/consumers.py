@@ -14,6 +14,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_name = self.scope['url_route']['kwargs']['room_name']
         self.room_group_name = f'chat_{self.room_name}'
         self.user = self.scope['user']
+        self.is_authorized = False
 
         logger.warning(
             'ChatConsumer.connect room=%s user=%s authenticated=%s scheme=%s',
@@ -21,29 +22,37 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.user.is_authenticated, self.scope.get('scheme'),
         )
 
+        # Accept immediately, before any DB/Redis work, so the 101 handshake
+        # reaches the browser. If the DB call below then hangs or errors, the
+        # browser sees an open socket and a visible system_error instead of a
+        # silent 1006 — this isolates proxy-vs-backend failures.
+        await self.accept()
+
         if not self.user.is_authenticated:
+            await self._send_system_error('Not authenticated')
             await self.close(code=4001)
             return
 
-        if not await self._is_participant():
+        try:
+            participant = await self._is_participant()
+        except Exception as exc:
+            logger.exception('ChatConsumer: participant check failed')
+            await self._send_system_error(f'DB check failed: {exc}')
+            await self.close(code=1011)
+            return
+
+        if not participant:
+            await self._send_system_error('You are not a participant in this chat')
             await self.close(code=4003)
             return
 
-        # Accept the socket first so any Redis failure below is visible
-        # to the client instead of surfacing as a silent 1006.
-        await self.accept()
+        self.is_authorized = True
 
         try:
             await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         except Exception as exc:
             logger.exception('ChatConsumer: Redis group_add failed')
-            try:
-                await self.send(text_data=json.dumps({
-                    'type': 'system_error',
-                    'message': f'Redis group_add failed: {exc}',
-                }))
-            except Exception:
-                pass
+            await self._send_system_error(f'Redis group_add failed: {exc}')
             await self.close(code=1011)
             return
 
@@ -57,6 +66,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {'type': 'read_receipt', 'reader': self.user.username}
         )
 
+    async def _send_system_error(self, message):
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'system_error',
+                'message': message,
+            }))
+        except Exception:
+            pass
+
     async def disconnect(self, close_code):
         if hasattr(self, 'channel_layer') and hasattr(self, 'room_group_name'):
             try:
@@ -65,6 +83,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 logger.exception('ChatConsumer: Redis group_discard failed')
 
     async def receive(self, text_data):
+        if not getattr(self, 'is_authorized', False):
+            await self.close(code=4003)
+            return
+
         data = json.loads(text_data)
 
         if data.get('type') == 'typing':

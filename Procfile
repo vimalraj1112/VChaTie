@@ -1,2 +1,2 @@
-web: daphne chatproject.asgi:application --port $PORT --bind 0.0.0.0 --proxy-headers -v2
+web: uvicorn chatproject.asgi:application --host 0.0.0.0 --port $PORT --proxy-headers
 release: python manage.py migrate
