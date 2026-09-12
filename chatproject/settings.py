@@ -118,11 +118,12 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
-    # Bound DB timeouts so a stalled connection inside a WebSocket consumer
-    # raises a clean error instead of hanging the consumer forever.
+    # Client-side bound connection timeout so a stalled connect inside a
+    # WebSocket consumer raises a clean error instead of hanging forever.
+    # NOTE: do NOT add server startup options here (e.g. statement_timeout)
+    # — Neon's pooled host rejects unsupported startup parameters.
     DATABASES['default'].setdefault('OPTIONS', {})
     DATABASES['default']['OPTIONS'].setdefault('connect_timeout', 10)
-    DATABASES['default']['OPTIONS'].setdefault('options', '-c statement_timeout=15000')
 else:
     DATABASES = {
         'default': {
