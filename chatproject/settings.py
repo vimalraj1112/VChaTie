@@ -70,6 +70,8 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
             "hosts": [config('REDIS_URL', default='redis://127.0.0.1:6379')],
+            "capacity": 1500,
+            "expiry": 10,
         },
     },
 }
@@ -114,7 +116,7 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
-            conn_max_age=0,
+            conn_max_age=600,
             conn_health_checks=True,
         )
     }
@@ -235,12 +237,12 @@ LOGGING = {
         },
         'channels': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'WARNING' if not DEBUG else 'INFO',
             'propagate': False,
         },
         'channels_redis': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'WARNING' if not DEBUG else 'INFO',
             'propagate': False,
         },
         'django.channels.server': {

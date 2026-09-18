@@ -1,17 +1,16 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from .models import Conversation, Profile,Message
+from .models import Conversation, Profile, Message
 from django.contrib.auth.models import User
 from django.contrib import messages as django_message
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.utils import timezone
+from django.db.models import Prefetch
 import json
-from django.http import HttpResponse
 from django_ratelimit.decorators import ratelimit
-from django.http import Http404
 from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 
@@ -26,7 +25,7 @@ def get_date_label(dt):
     elif diff == 1:
         return "Yesterday"
     elif diff < 7:
-        return local_dt.strftime("%A")  
+        return local_dt.strftime("%A")
     else:
         return local_dt.strftime("%B %d, %Y")
 
@@ -35,7 +34,7 @@ def get_participant_conversation_or_404(request, pk):
     """Return the conversation if request.user is a participant, else 404."""
     try:
         return Conversation.objects.get(pk=pk, participants=request.user)
-    except Conversation.DoesNotExist:
+    except (Conversation.DoesNotExist, ValueError):
         raise Http404("Conversation not found or access denied.")
 
 
@@ -63,23 +62,49 @@ def logout_view(request):
 
 @login_required
 def inbox(request):
-    conversations = request.user.conversations.exclude(deleted_for=request.user)
+    # Prefetch participants with their profile and messages with sender to eliminate N+1 queries
+    conversations = request.user.conversations.exclude(
+        deleted_for=request.user
+    ).prefetch_related(
+        Prefetch(
+            'participants',
+            queryset=User.objects.select_related('profile')
+        ),
+        Prefetch(
+            'message',
+            queryset=Message.objects.select_related('sender').order_by('timestamp')
+        )
+    )
 
     conversation_data = []
     for conv in conversations:
-        last_message = conv.message.last()
+        # Use in-memory cached messages from prefetch instead of executing new SQL queries
+        all_messages = list(conv.message.all())
+        last_message = all_messages[-1] if all_messages else None
 
         if conv.is_group:
             display_name = conv.group_name
             other_user = None
         else:
-            other_user = conv.participants.exclude(id=request.user.id).first()
+            participants = [u for u in conv.participants.all() if u.id != request.user.id]
+            other_user = participants[0] if participants else None
             display_name = other_user.username if other_user else 'Unknown'
 
         preview = None
         if last_message:
-            prefix = "You" if last_message.sender == request.user else last_message.sender.username
-            preview = f"{prefix}: {last_message.text}"
+            if last_message.is_deleted:
+                preview = "This message was deleted"
+            elif last_message.text:
+                prefix = "You" if last_message.sender_id == request.user.id else last_message.sender.username
+                preview = f"{prefix}: {last_message.text}"
+            elif last_message.image:
+                preview = "📷 Photo"
+            elif last_message.video:
+                preview = "🎥 Video"
+            elif last_message.audio:
+                preview = "🎤 Voice message"
+            elif last_message.call_type:
+                preview = f"📞 {last_message.call_type.title()} call"
 
         conversation_data.append({
             'conversation': conv,
@@ -105,7 +130,11 @@ def load_older_messages(request, room_name):
     if not before_id:
         return JsonResponse({'messages': [], 'has_more': False})
 
-    older = list(conversation.message.filter(id__lt=before_id).order_by('-timestamp')[:31])
+    older = list(
+        conversation.message.filter(id__lt=before_id)
+        .select_related('sender')
+        .order_by('-timestamp')[:31]
+    )
     has_more = len(older) > 30
     older = list(reversed(older[:30]))
 
@@ -144,7 +173,7 @@ def delete_message(request, message_id):
 
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            f'chat_{message.conversation.id}',
+            f'chat_{message.conversation_id}',
             {
                 'type': 'message_deleted',
                 'message_id': message.id,
@@ -162,7 +191,7 @@ def leave_group(request,conversation_id):
     if conversation.is_group:
         conversation.participants.remove(request.user)
 
-    return redirect('inbox')    
+    return redirect('inbox')
 
 @login_required
 def profile_settings(request):
@@ -189,9 +218,14 @@ def delete_avatar(request):
 
 @login_required
 def room(request, room_name):
-    conversation = get_participant_conversation_or_404(request, room_name)
+    try:
+        conversation = Conversation.objects.prefetch_related(
+            Prefetch('participants', queryset=User.objects.select_related('profile'))
+        ).get(pk=room_name, participants=request.user)
+    except (Conversation.DoesNotExist, ValueError):
+        raise Http404("Conversation not found or access denied.")
 
-    all_messages = conversation.message.all().order_by('-timestamp')[:30]
+    all_messages = conversation.message.select_related('sender', 'reply_to__sender').order_by('-timestamp')[:30]
     messages_list = list(reversed(all_messages))
 
     grouped_items = []
@@ -203,7 +237,11 @@ def room(request, room_name):
             last_date_label = label
         grouped_items.append({'is_date': False, 'msg': msg})
 
-    conversation.message.exclude(sender=request.user).update(is_read=True)
+    # Mark unread messages read with 0 redundant queries
+    Message.objects.filter(
+        conversation_id=conversation.id,
+        is_read=False
+    ).exclude(sender=request.user).update(is_read=True)
 
     if conversation.is_group:
         display_name = conversation.group_name
@@ -212,13 +250,14 @@ def room(request, room_name):
         other_last_seen = None
         other_avatar = None
     else:
-        other_user = conversation.participants.exclude(id=request.user.id).first()
+        participants = [u for u in conversation.participants.all() if u.id != request.user.id]
+        other_user = participants[0] if participants else None
         display_name = other_user.username if other_user else 'Unknown'
-        try:
+        if other_user and hasattr(other_user, 'profile'):
             other_online = other_user.profile.is_online
             other_last_seen = other_user.profile.last_seen
             other_avatar = other_user.profile.avatar.url if other_user.profile.avatar else None
-        except Profile.DoesNotExist:
+        else:
             other_online = False
             other_last_seen = None
             other_avatar = None
@@ -234,6 +273,7 @@ def room(request, room_name):
         'created_at': conversation.created_at,
         'group_photo': conversation.group_photo.url if conversation.group_photo else None,
     })
+
 @ratelimit(key='ip', rate='5/m', method='POST', block=True)
 def register_view(request):
     if request.method == 'POST':
@@ -310,13 +350,9 @@ def new_conversation(request):
 
 @login_required
 def export_chat(request, room_name):
-    conversation = Conversation.objects.get(id=room_name)
+    conversation = get_participant_conversation_or_404(request, room_name)
 
-    # Security check: only participants can export
-    if request.user not in conversation.participants.all():
-        return redirect('inbox')
-
-    messages = conversation.message.all().order_by('timestamp')
+    messages = conversation.message.select_related('sender').order_by('timestamp')
 
     data = []
     for msg in messages:

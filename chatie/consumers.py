@@ -57,14 +57,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         try:
-            await self.mark_messages_read()
+            updated = await self.mark_messages_read()
+            if updated:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {'type': 'read_receipt', 'reader': self.user.username}
+                )
         except Exception:
             logger.exception('ChatConsumer: mark_messages_read failed')
-
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {'type': 'read_receipt', 'reader': self.user.username}
-        )
 
     async def _send_system_error(self, message):
         try:
@@ -96,8 +96,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
             return
 
-        message = data['message']
+        message = (data.get('message') or '').strip()
+        if not message:
+            return
+
         reply_to_id = data.get('reply_to')
+        temp_id = data.get('temp_id')
         msg_id, reply_snippet, reply_sender = await self.save_message(message, reply_to_id)
 
         await self.channel_layer.group_send(
@@ -107,24 +111,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'message': message,
                 'sender': self.user.username,
                 'message_id': msg_id,
+                'temp_id': temp_id,
                 'reply_snippet': reply_snippet,
                 'reply_sender': reply_sender,
             }
         )
 
     async def chat_message(self, event):
-        if event['sender'] != self.user.username:
-            await self.mark_messages_read()
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {'type': 'read_receipt', 'reader': self.user.username}
-            )
-
+        # Deliver message immediately to browser WebSocket without waiting for DB operations
         await self.send(text_data=json.dumps({
             'type': 'message',
             'message': event['message'],
             'sender': event['sender'],
             'message_id': event['message_id'],
+            'temp_id': event.get('temp_id'),
             'image_url': event.get('image_url'),
             'video_url': event.get('video_url'),
             'audio_url': event.get('audio_url'),
@@ -133,6 +133,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'call_type': event.get('call_type'),
             'call_duration': event.get('call_duration'),
         }))
+
+        # Mark read and notify sender in background after delivery
+        if event['sender'] != self.user.username:
+            try:
+                updated = await self.mark_messages_read()
+                if updated:
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {'type': 'read_receipt', 'reader': self.user.username}
+                    )
+            except Exception:
+                logger.exception('ChatConsumer: mark_messages_read in chat_message failed')
 
     async def read_receipt(self, event):
         if event['reader'] != self.user.username:
@@ -162,21 +174,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_message(self, message, reply_to_id=None):
-        conversation = Conversation.objects.get(id=self.room_name)
         reply_msg = None
         reply_snippet = None
         reply_sender = None
 
         if reply_to_id:
             try:
-                reply_msg = Message.objects.get(id=reply_to_id)
+                reply_msg = Message.objects.select_related('sender').get(id=reply_to_id)
                 reply_snippet = reply_msg.text[:60] if reply_msg.text else "Media message"
                 reply_sender = reply_msg.sender.username
             except Message.DoesNotExist:
                 pass
 
         msg = Message.objects.create(
-            conversation=conversation,
+            conversation_id=self.room_name,
             sender=self.user,
             text=message,
             reply_to=reply_msg
@@ -185,8 +196,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def mark_messages_read(self):
-        conversation = Conversation.objects.get(id=self.room_name)
-        conversation.message.exclude(sender=self.user).update(is_read=True)
+        return Message.objects.filter(
+            conversation_id=self.room_name,
+            is_read=False
+        ).exclude(sender=self.user).update(is_read=True)
 
 
 class PresenceConsumer(AsyncWebsocketConsumer):
@@ -232,11 +245,10 @@ class PresenceConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def set_online(self, status):
-        profile, created = Profile.objects.get_or_create(user=self.user)
-        profile.is_online = status
-        if not status:
-            profile.last_seen = timezone.now()
-        profile.save()
+        if status:
+            Profile.objects.filter(user=self.user).update(is_online=True)
+        else:
+            Profile.objects.filter(user=self.user).update(is_online=False, last_seen=timezone.now())
 
 class CallConsumer(AsyncWebsocketConsumer):
 

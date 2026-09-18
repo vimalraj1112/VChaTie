@@ -12,34 +12,34 @@ class Profile(models.Model):
     user=models.OneToOneField(User,on_delete=models.CASCADE)
     avatar=models.ImageField(upload_to='avatars/',blank=True,null=True)
     bio=models.CharField(max_length=200,blank=True)
-    is_online=models.BooleanField(default=False)
+    is_online=models.BooleanField(default=False,db_index=True)
     last_seen=models.DateTimeField(blank=True,null=True)
 
     def __str__(self):
         return self.user.username
-    
+
 class Conversation(models.Model):
     participants=models.ManyToManyField(User,related_name='conversations')
     is_group=models.BooleanField(default=False)
     group_name=models.CharField(max_length=200,blank=True)
     group_photo=models.ImageField(upload_to='group_photos/',blank=True,null=True)
-    created_at=models.DateTimeField(auto_now_add=True)
+    created_at=models.DateTimeField(auto_now_add=True,db_index=True)
     deleted_for=models.ManyToManyField(User,related_name='deleted_conversations',blank=True)
 
     def __str__(self):
         if self.is_group:
             return self.group_name
         return f"conversations {self.id}"
-    
+
 class Message(models.Model):
     conversation=models.ForeignKey(Conversation,on_delete=models.CASCADE,related_name='message')
     sender=models.ForeignKey(User,on_delete=models.CASCADE)
-    text=models.TextField(blank=True)    
+    text=models.TextField(blank=True)
     image=models.ImageField(upload_to='chat_images/',blank=True,null=True)
     video=models.FileField(upload_to='chat_videos',blank=True,null=True,storage=media_storage)
     audio=models.FileField(upload_to='chat_audio',blank=True,null=True,storage=media_storage)
-    timestamp=models.DateTimeField(auto_now_add=True)
-    is_read=models.BooleanField(default=False)
+    timestamp=models.DateTimeField(auto_now_add=True,db_index=True)
+    is_read=models.BooleanField(default=False,db_index=True)
     is_deleted = models.BooleanField(default=False)
     reply_to=models.ForeignKey('self',on_delete=models.SET_NULL,null=True,blank=True,related_name='replies')
     call_type = models.CharField(max_length=10, blank=True, null=True)
@@ -47,6 +47,10 @@ class Message(models.Model):
 
     class Meta:
         ordering=['timestamp']
+        indexes = [
+            models.Index(fields=['conversation', '-timestamp']),
+            models.Index(fields=['conversation', 'is_read']),
+        ]
 
     def __str__(self):
         return f"{self.sender.username}:{self.text[:20]}"    
