@@ -17,9 +17,9 @@ from decouple import config
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-ALLOWED_HOSTS = ['vchatieapp.onrender.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['vchatieapp.onrender.com', 'localhost', '127.0.0.1', '*.onrender.com']
 
-CSRF_TRUSTED_ORIGINS = ['https://vchatieapp.onrender.com']
+CSRF_TRUSTED_ORIGINS = ['https://vchatieapp.onrender.com', 'https://*.onrender.com']
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -72,6 +72,10 @@ CHANNEL_LAYERS = {
             "hosts": [config('REDIS_URL', default='redis://127.0.0.1:6379')],
             "capacity": 1500,
             "expiry": 10,
+            "ssl_certfile": None,
+            "ssl_keyfile": None,
+            "ssl_ca_certs": None,
+            "ssl_cert_reqs": None,
         },
     },
 }
