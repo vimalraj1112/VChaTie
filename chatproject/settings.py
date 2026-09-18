@@ -17,7 +17,7 @@ from decouple import config
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-ALLOWED_HOSTS = ['vchatieapp.onrender.com', 'localhost', '127.0.0.1', '*.onrender.com']
+ALLOWED_HOSTS = ['vchatieapp.onrender.com', 'localhost', '127.0.0.1', '*.onrender.com', '*']
 
 CSRF_TRUSTED_ORIGINS = ['https://vchatieapp.onrender.com', 'https://*.onrender.com']
 
