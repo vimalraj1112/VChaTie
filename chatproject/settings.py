@@ -236,22 +236,22 @@ LOGGING = {
     'loggers': {
         'chatie': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'DEBUG',
             'propagate': False,
         },
         'channels': {
             'handlers': ['console'],
-            'level': 'WARNING' if not DEBUG else 'INFO',
+            'level': 'DEBUG',
             'propagate': False,
         },
         'channels_redis': {
             'handlers': ['console'],
-            'level': 'WARNING' if not DEBUG else 'INFO',
+            'level': 'DEBUG',
             'propagate': False,
         },
         'django.channels.server': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'DEBUG',
             'propagate': False,
         },
     },
